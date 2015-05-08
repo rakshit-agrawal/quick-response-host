@@ -25,5 +25,5 @@ src/web2py/applications/*/languages/*.po
 *.sass-cache
 src/web2py/applications/*/yaml/*
 data/*
-
+*outfile*
 
