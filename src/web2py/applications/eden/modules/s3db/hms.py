@@ -115,6 +115,7 @@ class HospitalDataModel(S3Model):
                      super_link("doc_id", "doc_entity"),
                      super_link("pe_id", "pr_pentity"),
                      super_link("site_id", "org_site"),
+
                      # UID assigned by Local Government
                      # required for EDXL-HAVE
                      # @ToDo: Move to a KV in hms_hospital_tag table?
@@ -127,26 +128,31 @@ class HospitalDataModel(S3Model):
                            readable = False,
                            writable = False,
                            ),
+
                      # Name of the facility
                      Field("name", notnull=True,
                            length=64, # Mayon compatibility
                            label = T("Name"),
                            ),
+
                      # Alternate name, or name in local language
                      Field("aka1",
                            label = T("Other Name"),
                            ),
+
                      # Alternate name, or name in local language
                      Field("aka2",
                            label = T("Other Name"),
                            readable = False,
                            writable = False,
                            ),
-                     Field("code", length=10, # Mayon compatibility
+
+                     # Mayon compatibility
+                     Field("code", length=10,
                            #notnull=True, unique=True,
-                           # @ToDo: code_requires
                            label = T("Code"),
                            ),
+
                      Field("facility_type", "integer",
                            default = 1,
                            label = T("Facility Type"),
@@ -160,6 +166,7 @@ class HospitalDataModel(S3Model):
                         requires = self.org_organisation_requires(updateable=True),
                         ),
                      self.gis_location_id(),
+
                      # Address fields:
                      # @todo: Deprecate these & use location_id in HAVE export
                      Field("address",

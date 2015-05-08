@@ -59,7 +59,6 @@ from gluon import *
 #from gluon.validators import IS_EMPTY_OR, IS_NOT_IN_DB, IS_DATE, IS_TIME
 from gluon.storage import Storage
 
-from s3datetime import s3_parse_datetime
 from s3resource import S3Resource
 from s3utils import s3_get_extension, s3_remove_last_record_id, s3_store_last_record_id
 
@@ -246,18 +245,30 @@ class S3Request(object):
                 self.id = self.record[_id]
                 s3_store_last_record_id(self.tablename, self.id)
             else:
-                raise KeyError(current.ERROR.BAD_RECORD)
+                error = current.ERROR.BAD_RECORD
+                if self.representation == "html":
+                    current.session.error = error
+                    self.component = None # => avoid infinite loop
+                    redirect(URL(r=current.request, c=self.controller))
+                else:
+                    raise KeyError(error)
 
         # Identify the component
         self.component = None
+        self.pkey = None # @todo: deprecate
+        self.fkey = None # @todo: deprecate
+        self.multiple = True # @todo: deprecate
+
         if self.component_name:
             c = self.resource.components.get(self.component_name)
             if c:
                 self.component = c
+                self.pkey, self.fkey = c.pkey, c.fkey # @todo: deprecate
+                self.multiple = c.multiple # @todo: deprecate
             else:
                 error = "%s not a component of %s" % (self.component_name,
                                                       self.resource.tablename)
-                raise AttributeError(error)
+                raise SyntaxError(error)
 
         # Identify link table and link ID
         self.link = None
@@ -268,27 +279,33 @@ class S3Request(object):
         if self.link and self.id and self.component_id:
             self.link_id = self.link.link_id(self.id, self.component_id)
             if self.link_id is None:
-                raise KeyError(current.ERROR.BAD_RECORD)
+                error = current.ERROR.BAD_RECORD
+                if self.representation == "html":
+                    current.session.error = error
+                    self.component = None # => avoid infinite loop
+                    redirect(URL(r=current.request, c=self.controller))
+                else:
+                    raise KeyError(error)
 
         # Store method handlers
         self._handler = Storage()
         set_handler = self.set_handler
         set_handler("export_tree", self.get_tree,
-                    http=("GET",), transform=True)
+                    http=["GET"], transform=True)
         set_handler("import_tree", self.put_tree,
-                    http=("GET", "PUT", "POST"), transform=True)
+                    http=["GET", "PUT", "POST"], transform=True)
         set_handler("fields", self.get_fields,
-                    http=("GET",), transform=True)
+                    http=["GET"], transform=True)
         set_handler("options", self.get_options,
-                    http=("GET",), transform=True)
+                    http=["GET"], transform=True)
 
         sync = current.sync
         set_handler("sync", sync,
-                    http=("GET", "PUT", "POST",), transform=True)
+                    http=["GET", "PUT", "POST"], transform=True)
         set_handler("sync_log", sync.log,
-                    http=("GET",), transform=True)
+                    http=["GET"], transform=True)
         set_handler("sync_log", sync.log,
-                    http=("GET",), transform=False)
+                    http=["GET"], transform=False)
 
         # Initialize CRUD
         self.resource.crud(self, method="_init")
@@ -310,19 +327,19 @@ class S3Request(object):
             @type handler: handler(S3Request, **attr)
         """
 
-        HTTP = ("GET", "PUT", "POST", "DELETE")
+        HTTP = ["GET", "PUT", "POST", "DELETE"]
 
         if http is None:
             http = HTTP
-        if not isinstance(http, (set, tuple, list)):
+        if not isinstance(http, (list, tuple)):
             http = [http]
         if transform:
             representation = ["__transform__"]
         elif representation is None:
             representation = [self.DEFAULT_REPRESENTATION]
-        if not isinstance(representation, (set, tuple, list)):
+        if not isinstance(representation, (list, tuple)):
             representation = [representation]
-        if not isinstance(method, (set, tuple, list)):
+        if not isinstance(method, (list, tuple)):
             method = [method]
 
         handlers = self._handler
@@ -672,7 +689,7 @@ class S3Request(object):
                         self.record = resource._rows[0]
                         self.id = resource.get_id()
                         self.uid = resource.get_uid()
-                if self.component.multiple and not self.component_id:
+                if self.multiple and not self.component_id:
                     method = "list"
                 else:
                     method = "read"
@@ -789,7 +806,13 @@ class S3Request(object):
         # msince
         msince = get_vars.get("msince")
         if msince is not None:
-            msince = s3_parse_datetime(msince)
+            tfmt = current.xml.ISOFORMAT
+            try:
+                (y, m, d, hh, mm, ss, t0, t1, t2) = \
+                    time.strptime(msince, tfmt)
+                msince = datetime.datetime(y, m, d, hh, mm, ss)
+            except ValueError:
+                msince = None
 
         # Show IDs (default: False)
         if "show_ids" in get_vars:
@@ -1615,7 +1638,7 @@ class S3Method(object):
             resource = component
             self.record_id = self._record_id(r)
             if not self.method:
-                if component.multiple and not r.component_id:
+                if r.multiple and not r.component_id:
                     self.method = "list"
                 else:
                     self.method = "read"
@@ -1804,31 +1827,26 @@ class S3Method(object):
             @param r: the S3Request
         """
 
-        master_id = r.id
-
         if r.component:
-
-            component = r.component
-            component_id = r.component_id
-            link = r.link
-
-            if not component.multiple and not component_id:
-                # Enforce first component record
-                table = component.table
+            # Component
+            if not r.multiple and not r.component_id:
+                resource = r.component
+                table = resource.table
                 pkey = table._id.name
-                component.load(start=0, limit=1)
-                if len(component):
-                    component_id = component.records().first()[pkey]
-                    if link and master_id:
-                        r.link_id = link.link_id(master_id, component_id)
-                    r.component_id = component_id
-
-            if not link or r.actuate_link():
+                resource.load(start=0, limit=1)
+                if len(resource):
+                    r.component_id = resource.records().first()[pkey]
+            component_id = r.component_id
+            if not r.link:
                 return component_id
-            else:
-                return r.link_id
+            elif r.id and component_id:
+                if r.actuate_link():
+                    return component_id
+                elif r.link_id:
+                    return r.link_id
         else:
-            return master_id
+            # Master record
+            return r.id
 
         return None
 
@@ -1979,44 +1997,27 @@ class S3Method(object):
 # Global functions
 #
 def s3_request(*args, **kwargs):
-    """
-        Helper function to generate S3Request instances
 
-        @param args: arguments for the S3Request
-        @param kwargs: keyword arguments for the S3Request
-
-        @keyword catch_errors: if set to False, errors will be raised
-                               instead of returned to the client, useful
-                               for optional sub-requests, or if the caller
-                               implements fallbacks
-    """
-
-    error = None
+    xml = current.xml
+    headers = {"Content-Type":"application/json"}
     try:
         r = S3Request(*args, **kwargs)
-    except (AttributeError, SyntaxError):
-        error = 400
-    except KeyError:
-        error = 404
-    if error:
-        if kwargs.get("catch_errors") is False:
-            raise
+    except SyntaxError:
         message = sys.exc_info()[1]
-        if hasattr(message, "message"):
-            message = message.message
-        if current.auth.permission.format == "html":
-            current.session.error = message
-            redirect(URL(f="index"))
-        else:
-            headers = {"Content-Type":"application/json"}
-            current.log.error(message)
-            raise HTTP(error,
-                       body=current.xml.json_message(success=False,
-                                                     statuscode=error,
-                                                     message=message,
-                                                     ),
-                       web2py_error=message,
-                       **headers)
+        current.log.error(message)
+        raise HTTP(400,
+                    body=xml.json_message(False, 400, message=message),
+                    web2py_header=message,
+                    **headers)
+    except KeyError:
+        message = sys.exc_info()[1]
+        current.log.error(message)
+        raise HTTP(404,
+                    body=xml.json_message(False, 404, message=message),
+                    web2py_header=message,
+                    **headers)
+    except:
+        raise
     return r
 
 # END =========================================================================

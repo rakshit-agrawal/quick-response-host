@@ -103,8 +103,6 @@ class S3AssetModel(S3Model):
         T = current.T
         db = current.db
         auth = current.auth
-        user = auth.user
-        LOGGED_IN = auth.is_logged_in()
         s3 = current.response.s3
 
         item_id = self.supply_item_id
@@ -193,11 +191,10 @@ class S3AssetModel(S3Model):
                            readable = False,
                            writable = False,
                            ),
-                     organisation_id(default = user.organisation_id if LOGGED_IN else None,
-                                     requires = self.org_organisation_requires(
-                                                updateable=True,
-                                                #required=True
-                                                ),
+                     organisation_id(requires=self.org_organisation_requires(
+                                                 updateable=True,
+                                                 #required=True
+                                              ),
                                      required = True,
                                      script = \
 '''$.filterOptionsS3({
@@ -212,7 +209,7 @@ class S3AssetModel(S3Model):
                      # This is a component, so needs to be a super_link
                      # - can't override field name, ondelete or requires
                      super_link("site_id", "org_site",
-                                default = user.site_id if LOGGED_IN else None,
+                                default = auth.user.site_id if auth.is_logged_in() else None,
                                 empty = False,
                                 label = org_site_label,
                                 ondelete = "RESTRICT",
@@ -435,7 +432,7 @@ class S3AssetModel(S3Model):
         tablename = "asset_item"
         define_table(tablename,
                      item_entity_id,
-                     asset_id(ondelete = "CASCADE"),
+                     asset_id(ondelete="CASCADE"),
                      item_id(represent = supply_item_represent,
                              requires = IS_ONE_OF(asset_items_set,
                                                   "supply_item.id",
@@ -544,20 +541,20 @@ $.filterOptionsS3({
                      # This is a component, so needs to be a super_link
                      # - can't override field name, ondelete or requires
                      super_link("site_id", "org_site",
-                                #default = user.site_id if LOGGED_IN else None,
-                                empty = False,
                                 label = org_site_label,
                                 #filterby = "site_id",
                                 #filter_opts = auth.permitted_facilities(redirect_on_error=False),
                                 instance_types = auth.org_site_types,
+                                updateable = True,
                                 not_filterby = "obsolete",
                                 not_filter_opts = (True,),
-                                represent = self.org_site_represent,
+                                #default = user.site_id if is_logged_in() else None,
                                 readable = True,
                                 writable = True,
-                                script = script,
-                                updateable = True,
+                                empty = False,
+                                represent = self.org_site_represent,
                                 #widget = S3SiteAutocompleteWidget(),
+                                script = script,
                                 ),
                      self.org_room_id(),
                      #location_id(),
@@ -585,8 +582,9 @@ $.filterOptionsS3({
                      *s3_meta_fields())
 
         # CRUD strings
+        ADD_ASSIGN = T("New Entry in Asset Log")
         crud_strings[tablename] = Storage(
-            label_create = T("New Entry in Asset Log"),
+            label_create = ADD_ASSIGN,
             title_display = T("Asset Log Details"),
             title_list = T("Asset Log"),
             title_update = T("Edit Asset Log Entry"),

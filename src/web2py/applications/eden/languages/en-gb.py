@@ -66,7 +66,6 @@
 'Filter': 'Filter',
 'From Organization': 'From Organisation',
 'Fulfill Requests': 'Fulfil Requests',
-'Fulfillment Status': 'Fulfilment Status',
 'Funding Organization': 'Funding Organisation',
 'Funds Contributed by this Organization': 'Funds Contributed by this Organisation',
 'Hair Color': 'Hair Colour',

@@ -46,7 +46,6 @@ except ImportError:
 
 from gluon import *
 
-from ..s3datetime import s3_encode_iso_datetime
 from ..s3sync import S3SyncBaseAdapter
 from ..s3utils import s3_unicode
 
@@ -247,7 +246,7 @@ class S3SyncAdapter(S3SyncBaseAdapter):
         # Last pull time
         last_pull = task.last_pull
         if last_pull and task.update_policy not in ("THIS", "OTHER"):
-            msince = s3_encode_iso_datetime(last_pull)
+            msince = xml.encode_iso_datetime(last_pull)
         else:
             msince = None
 

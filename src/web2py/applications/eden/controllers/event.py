@@ -25,7 +25,7 @@ def index_alt():
     """
 
     # Just redirect to the list of Events
-    s3_redirect_default(URL(f="event"))
+    redirect(URL(f="event"))
 
 # -----------------------------------------------------------------------------
 def create():

@@ -847,7 +847,6 @@ def translate():
                 return output
 
             # Create a form with checkboxes for list of modules
-            # @todo: migrate to formstyle, use regular form widgets
             A = TranslateAPI()
             # Retrieve list of active modules
             activemodlist = settings.modules.keys()
@@ -878,12 +877,8 @@ def translate():
                 mod_name = modules[modlist[num]].name_nice
                 mod_name = "%s (%s)" %(mod_name, modlist[num])
                 row = TR(TD(num + 1),
-                         TD(INPUT(_type="checkbox",
-                                  _name="module_list",
-                                  _value=modlist[num],
-                                  _checked = check,
-                                  _class="translate-select-module",
-                                  )),
+                         TD(INPUT(_type="checkbox", _name="module_list",
+                                  _value=modlist[num], _checked = check)),
                          TD(mod_name),
                          )
 
@@ -896,37 +891,20 @@ def translate():
                         row.append(TD(INPUT(_type="checkbox",
                                             _name="module_list",
                                             _value=modlist[cmax_rows],
-                                            _checked = check,
-                                            _class="translate-select-module",
-                                            )))
+                                            _checked = check)))
                         row.append(TD(mod_name))
                 num += 1
                 table.append(row)
 
-            div = DIV(table, BR())
-
-            # Toogle box to select/de-select all modules
-            row = TR(TD(INPUT(_type="checkbox",
-                              _class="translate-select-all-modules",
-                              _checked=check,
-                              ),
-                        ),
-                     TD(T("Select all modules")),
-                     )
-            script = '''$('.translate-select-all-modules').click(function(){$('.translate-select-module').prop('checked',$(this).prop('checked'));})'''
-            current.response.s3.jquery_ready.append(script)
-            div.append(row)
-            div.append(BR())
-
-            # Checkbox for inclusion of core files
+            div = DIV(table,
+                      BR(),
+                      )
             row = TR(TD(INPUT(_type="checkbox", _name="module_list",
                               _value="core", _checked="yes")),
                      TD(T("Include core files")),
                      )
             div.append(row)
             div.append(BR())
-
-            # Checkbox for inclusion of templates
             row = TR(TD(INPUT(_type="checkbox", _name="module_list",
                               _value="all")),
                      TD(T("Select all templates (All modules included)")),

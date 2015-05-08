@@ -273,7 +273,7 @@ class S3Config(Storage):
             Whether there is a custom Ext theme or simply use the default xtheme-gray
             - specified as <themefolder>/xtheme-<filename>.css
         """
-        return self.base.get("xtheme")
+        return self.base.get("xtheme", None)
 
     # -------------------------------------------------------------------------
     # Customise Hooks
@@ -288,18 +288,6 @@ class S3Config(Storage):
             return customise(**attr)
         else:
             return attr
-
-    def customise_home(self, module, alt_function):
-        """
-            Allow use of a Customised module Home page
-            Fallback to cms_index if not configured
-            Fallback to an alt_function if defined in the controller
-        """
-        customise = self.get("customise_%s_home" % module)
-        if customise:
-            return customise()
-        else:
-            return current.s3db.cms_index(module, alt_function=alt_function)
 
     def customise_resource(self, tablename):
         """
@@ -340,7 +328,7 @@ class S3Config(Storage):
         """
             Google Analytics Key
         """
-        return self.base.get("google_analytics_tracking_id")
+        return self.base.get("google_analytics_tracking_id", None)
 
     # -------------------------------------------------------------------------
     def get_youtube_id(self):
@@ -412,7 +400,7 @@ class S3Config(Storage):
             * Volunteer
             * Member
         """
-        return self.auth.get("registration_link_user_to")
+        return self.auth.get("registration_link_user_to", None)
     def get_auth_registration_link_user_to_default(self):
         """
             Link User accounts to none or more of:
@@ -420,7 +408,7 @@ class S3Config(Storage):
             * Volunteer
             * Member
         """
-        return self.auth.get("registration_link_user_to_default")
+        return self.auth.get("registration_link_user_to_default", None)
 
     def get_auth_opt_in_team_list(self):
         return self.auth.get("opt_in_team_list", [])
@@ -460,11 +448,11 @@ class S3Config(Storage):
 
     def get_auth_registration_organisation_default(self):
         " Default the Organisation during registration "
-        return self.auth.get("registration_organisation_default")
+        return self.auth.get("registration_organisation_default", None)
 
     def get_auth_registration_organisation_id_default(self):
         " Default the Organisation during registration - will return the organisation_id"
-        name = self.auth.get("registration_organisation_default")
+        name = self.auth.get("registration_organisation_default", None)
         if name:
             otable = current.s3db.org_organisation
             orow = current.db(otable.name == name).select(otable.id).first()
@@ -498,7 +486,7 @@ class S3Config(Storage):
 
     def get_auth_registration_pending(self):
         """ Message someone gets when they register & they need approving """
-        message = self.auth.get("registration_pending")
+        message = self.auth.get("registration_pending", None)
         if message:
             return current.T(message)
 
@@ -512,7 +500,7 @@ class S3Config(Storage):
 
     def get_auth_registration_pending_approval(self):
         """ Message someone gets when they register & they need approving """
-        message = self.auth.get("registration_pending_approval")
+        message = self.auth.get("registration_pending_approval", None)
         if message:
             return current.T(message)
 
@@ -550,20 +538,9 @@ class S3Config(Storage):
         """ Which tables record approval is required for """
         return self.auth.get("record_approval_required_for", [])
 
-    def get_auth_realm_entity_types(self):
-        """ Which entity types to use as realm entities in role manager """
-
-        default = ("org_group",
-                   "org_organisation",
-                   "org_office",
-                   "inv_warehouse",
-                   "pr_group",
-                   )
-        return self.__lazy(self.auth, "realm_entity_types", default=default)
-
     def get_auth_realm_entity(self):
         """ Hook to determine the owner entity of a record """
-        return self.auth.get("realm_entity")
+        return self.auth.get("realm_entity", None)
 
     def get_auth_person_realm_human_resource_site_then_org(self):
         """
@@ -659,7 +636,7 @@ class S3Config(Storage):
         """
             System Name (Short Version) - for the UI & Messaging
         """
-        return self.base.get("system_name_short", "Sahana")
+        return self.base.get("system_name_short", "Sahana Eden")
 
     def get_base_debug(self):
         """
@@ -789,7 +766,7 @@ class S3Config(Storage):
             "ERROR", "CRITICAL". None = turn off logging
         """
         return "DEBUG" if self.base.get("debug") \
-                       else self.log.get("level")
+                       else self.log.get("level", None)
 
     def get_log_console(self):
         """
@@ -801,7 +778,7 @@ class S3Config(Storage):
         """
             Log file name, None to turn off log file output
         """
-        return self.log.get("logfile")
+        return self.log.get("logfile", None)
 
     def get_log_caller_info(self):
         """
@@ -826,7 +803,7 @@ class S3Config(Storage):
                         (db_get("username", "sahana"),
                          db_get("password", "password"),
                          db_get("host", "localhost"),
-                         db_get("port") or "3306",
+                         db_get("port", None) or "3306",
                          db_get("database", "sahana"))
         elif (db_type == "postgres"):
             db_get = self.database.get
@@ -834,7 +811,7 @@ class S3Config(Storage):
                         (db_get("username", "sahana"),
                          db_get("password", "password"),
                          db_get("host", "localhost"),
-                         db_get("port") or "5432",
+                         db_get("port", None) or "5432",
                          db_get("database", "sahana"))
         else:
             from gluon import HTTP
@@ -843,38 +820,29 @@ class S3Config(Storage):
 
     # -------------------------------------------------------------------------
     # Finance settings
-    def get_fin_currency_writable(self):
-        """
-            Can the user select a Currency?
-        """
-        return self.fin.get("currency_writable", True)
-
+    # @ToDo: Make these customisable per Organisation
+    # => Move to a Table like hrm_course
     def get_fin_currencies(self):
-        """
-            Which Currencies can the user select?
-        """
-        currencies = self.__lazy(self.fin, "currencies")
-        if currencies is None:
-            T = current.T
-            currencies = {
-                "EUR" : T("Euros"),
-                "GBP" : T("Great British Pounds"),
-                "USD" : T("United States Dollars"),
-            }
-        return currencies
+        T = current.T
+        currencies = {
+            "EUR" : T("Euros"),
+            "GBP" : T("Great British Pounds"),
+            "USD" : T("United States Dollars"),
+        }
+        return self.fin.get("currencies", currencies)
 
     def get_fin_currency_default(self):
-        """
-            What is the default Currency?
-        """
-        return self.__lazy(self.fin, "currency_default", default="USD")
+        return self.fin.get("currency_default", "USD") # Dollars
+
+    def get_fin_currency_writable(self):
+        return self.fin.get("currency_writable", True)
 
     # -------------------------------------------------------------------------
     # GIS (Map) Settings
     #
     def get_gis_api_bing(self):
         """ API key for Bing """
-        return self.gis.get("api_bing")
+        return self.gis.get("api_bing", None)
 
     def get_gis_api_google(self):
         """
@@ -890,7 +858,7 @@ class S3Config(Storage):
             API key for Yahoo
             - deprecated
         """
-        return self.gis.get("api_yahoo")
+        return self.gis.get("api_yahoo", None)
 
     def get_gis_building_name(self):
         """
@@ -908,7 +876,7 @@ class S3Config(Storage):
         """
             Fill for Clustered points on Map, else default
         """
-        return self.gis.get("cluster_fill")
+        return self.gis.get("cluster_fill", None)
 
     def get_gis_cluster_label(self):
         """
@@ -920,19 +888,19 @@ class S3Config(Storage):
         """
             Stroke for Clustered points on Map, else default
         """
-        return self.gis.get("cluster_stroke")
+        return self.gis.get("cluster_stroke", None)
 
     def get_gis_select_fill(self):
         """
             Fill for Selected points on Map, else default
         """
-        return self.gis.get("select_fill")
+        return self.gis.get("select_fill", None)
 
     def get_gis_select_stroke(self):
         """
             Stroke for Selected points on Map, else default
         """
-        return self.gis.get("select_stroke")
+        return self.gis.get("select_stroke", None)
 
     def get_gis_clear_layers(self):
         """
@@ -946,7 +914,7 @@ class S3Config(Storage):
             Should GIS configs save a screenshot when saved?
             - set the size if True: (width, height)
         """
-        return self.gis.get("config_screenshot")
+        return self.gis.get("config_screenshot", None)
 
     def get_gis_countries(self):
         """
@@ -988,7 +956,7 @@ class S3Config(Storage):
         """
             Username for the GeoNames search box
         """
-        return self.gis.get("geonames_username")
+        return self.gis.get("geonames_username", None)
 
     def get_gis_geoserver_url(self):
         return self.gis.get("geoserver_url", "")
@@ -1360,7 +1328,7 @@ class S3Config(Storage):
                            )
 
     def get_L10n_utc_offset(self):
-        return self.L10n.get("utc_offset", "+0000")
+        return self.L10n.get("utc_offset", "UTC +0000")
 
     def get_L10n_firstDOW(self):
         return self.L10n.get("firstDOW", 1)
@@ -1445,11 +1413,11 @@ class S3Config(Storage):
         return self.base.get("paper_size", "A4")
 
     def get_pdf_logo(self):
-        return self.ui.get("pdf_logo")
+        return self.ui.get("pdf_logo", None)
 
     def get_pdf_export_font(self):
         language = current.session.s3.language
-        return self.fonts.get(language)
+        return self.fonts.get(language, None)
 
     # Optical Character Recognition (OCR)
     def get_pdf_excluded_fields(self, resourcename):
@@ -1498,7 +1466,7 @@ class S3Config(Storage):
     def get_ui_report_formstyle(self):
         """ Get the current report form style """
 
-        setting = self.ui.get("report_formstyle")
+        setting = self.ui.get("report_formstyle", None)
         formstyles = self.FORMSTYLE
         if callable(setting):
             return setting
@@ -1536,7 +1504,7 @@ class S3Config(Storage):
             - allows moving objects such as data_exports
         """
 
-        return self.ui.get("datatables_initComplete")
+        return self.ui.get("datatables_initComplete", None)
 
     def get_ui_datatables_pagingType(self):
         """
@@ -1578,14 +1546,14 @@ class S3Config(Storage):
             Custom icon CSS classes, a dict {abstract name: CSS class},
             can be used to partially override standard icons
         """
-        return self.ui.get("custom_icons")
+        return self.ui.get("custom_icons", None)
 
     def get_ui_icon_layout(self):
         """
             Callable to render icon HTML, which takes an ICON instance
             as parameter and returns valid XML as string
         """
-        return self.ui.get("icon_layout")
+        return self.ui.get("icon_layout", None)
 
     # -------------------------------------------------------------------------
     def get_ui_auth_user_represent(self):
@@ -1830,27 +1798,6 @@ class S3Config(Storage):
                                                    stripes = True,
                                                    ))
 
-    def get_ui_hierarchy_cascade_option_in_tree(self):
-        """
-            Whether hierarchy widgets show a "Select All" option in
-            the tree (True) or as context menu of the parent node.
-        """
-        return self.ui.get("hierarchy_cascade_option_in_tree", True)
-
-    def get_ui_hierarchy_filter_bulk_select_option(self):
-        """
-            Whether or not to show a bulk-select option in hierarchical
-            filter widgets (overrides per-widget setting)
-        """
-        return self.ui.get("hierarchy_filter_bulk_select_option")
-
-    def get_ui_location_filter_bulk_select_option(self):
-        """
-            Whether or not to show a bulk-select option in location
-            filter widgets (overrides per-widget setting)
-        """
-        return self.__lazy(self.ui, "location_filter_bulk_select_option")
-
     def get_ui_inline_component_layout(self):
         """
             Layout for S3SQLInlineComponent
@@ -1907,7 +1854,7 @@ class S3Config(Storage):
         """
             The From Address for all Outbound Emails
         """
-        return self.mail.get("sender")
+        return self.mail.get("sender", None)
     def get_mail_approver(self):
         """
             The default Address to send Requests for New Users to be Approved
@@ -1933,7 +1880,7 @@ class S3Config(Storage):
         """
             A daily limit to the number of messages which can be sent
         """
-        return self.mail.get("limit")
+        return self.mail.get("limit", None)
 
     # -------------------------------------------------------------------------
     # Parser
@@ -1972,7 +1919,7 @@ class S3Config(Storage):
             Custom content renderer function for update notifications,
             function()
         """
-        return self.msg.get("notify_renderer")
+        return self.msg.get("notify_renderer", None)
 
     # -------------------------------------------------------------------------
     # SMS
@@ -2009,19 +1956,19 @@ class S3Config(Storage):
 
     def get_search_filter_manager_save(self):
         """ Text for saved filter save-button """
-        return self.search.get("filter_manager_save")
+        return self.search.get("filter_manager_save", None)
 
     def get_search_filter_manager_update(self):
         """ Text for saved filter update-button """
-        return self.search.get("filter_manager_update")
+        return self.search.get("filter_manager_update", None)
 
     def get_search_filter_manager_delete(self):
         """ Text for saved filter delete-button """
-        return self.search.get("filter_manager_delete")
+        return self.search.get("filter_manager_delete", None)
 
     def get_search_filter_manager_load(self):
         """ Text for saved filter load-button """
-        return self.search.get("filter_manager_load")
+        return self.search.get("filter_manager_load", None)
 
     # =========================================================================
     # Sync
@@ -2194,7 +2141,7 @@ class S3Config(Storage):
                 * created_by$org_group_id
                 * post_organisation_group.group_id
         """
-        return self.cms.get("organisation_group")
+        return self.cms.get("organisation_group", None)
 
     def get_cms_person(self):
         """
@@ -2240,22 +2187,6 @@ class S3Config(Storage):
             Whether to show post Titles in News Feed
         """
         return self.cms.get("show_titles", False)
-
-    def get_cms_hide_index(self, module):
-        """
-            Whether to hide CMS from module index pages, can be configured
-            either as boolean, or as dict per module (with "_default" to
-            define the default behavior).
-        """
-
-        hide = self.cms.get("hide_index", {})
-        if isinstance(hide, dict):
-            for m in (module, "_default"):
-                if m in hide:
-                    return hide[m]
-            return False
-        else:
-            return hide
 
     # -------------------------------------------------------------------------
     # Shelters
@@ -2313,12 +2244,6 @@ class S3Config(Storage):
             Whether Incident Types are Hierarchical or not
         """
         return self.event.get("incident_types_hierarchical", False)
-
-    def get_event_incident_impact_tab(self):
-        """
-            Whether to show the impact tab for incidents
-        """
-        return self.event.get("incident_impact_tab", False)
 
     # -------------------------------------------------------------------------
     # Evacuees
@@ -2434,7 +2359,7 @@ class S3Config(Storage):
             False: Human Resources are only being manage internally within a single Organisation with no Branches
         """
         return self.hrm.get("multiple_orgs", True)
-
+    
     def get_hrm_compose_button(self):
         """
             If set to True then HRM dataTables have a 'Send Message' button
@@ -2509,7 +2434,7 @@ class S3Config(Storage):
         """
             The tooltip to show when viewing the Active status in the Volunteer RHeader
         """
-        return self.hrm.get("vol_active_tooltip")
+        return self.hrm.get("vol_active_tooltip", None)
 
     def get_hrm_vol_experience(self):
         """
@@ -2544,16 +2469,11 @@ class S3Config(Storage):
 
     def get_hrm_record_tab(self):
         """
-            Whether or not to show the HR record as tab, and with which
-            method:
-
-                True = show the default tab (human_resource)
-                "record" = consolidate tabs into 1x CV page:
-                            * Staff Record
-                            * Group Membership
-                False = do not show the tab (e.g. when HR record is inline)
+            Whether Human Resources should consolidate tabs into 1x CV page:
+            * Staff Record
+            * Group Membership
         """
-        return self.hrm.get("record_tab", True)
+        return self.hrm.get("record_tab", False)
 
     def get_hrm_use_awards(self):
         """
@@ -2569,11 +2489,9 @@ class S3Config(Storage):
 
     def get_hrm_use_code(self):
         """
-            Whether Human Resources should use Staff/Volunteer IDs,
-            either True or False, or "staff" to use code for staff
-            only
+            Whether Human Resources should use Staff/Volunteer IDs
         """
-        return self.__lazy(self.hrm, "use_code", default=False)
+        return self.hrm.get("use_code", False)
 
     def get_hrm_use_credentials(self):
         """
@@ -2603,10 +2521,7 @@ class S3Config(Storage):
         """
             Whether Human Resources should show address tab
         """
-        use_address = self.hrm.get("use_address", None)
-        # Fall back to PR setting if not specified
-        if use_address is None:
-            return self.get_pr_use_address()
+        return self.hrm.get("use_address", True)
 
     def get_hrm_use_skills(self):
         """
@@ -2620,20 +2535,12 @@ class S3Config(Storage):
         """
         return self.hrm.get("use_trainings", True)
 
-    def get_hrm_training_instructors(self):
-        """
-            Whether to track "internal" training instructors (=persons
-            from the registry), or "external" (=just names), or "both",
-            ...or None (=don't track instructors at all)
-        """
-        return self.__lazy(self.hrm, "training_instructors", "external")
-
     def get_hrm_activity_types(self):
         """
             HRM Activity Types (for experience record),
             a dict {"code": "label"}, None to deactivate (default)
         """
-        return self.hrm.get("activity_types")
+        return self.hrm.get("activity_types", None)
 
     # -------------------------------------------------------------------------
     # Inventory Management Settings
@@ -2642,19 +2549,7 @@ class S3Config(Storage):
         return self.inv.get("collapse_tabs", True)
 
     def get_inv_facility_label(self):
-        return self.inv.get("facility_label", "Warehouse")
-
-    def get_inv_recv_tab_label(self):
-        label = self.inv.get("recv_tab_label")
-        if not label:
-            if self.get_inv_shipment_name() == "order":
-                label = "Orders"
-            else:
-                label = "Receive"
-        return label
-
-    def get_inv_send_tab_label(self):
-        return self.inv.get("send_tab_label", "Send")
+        return self.inv.get("facility_label", current.T("Warehouse"))
 
     def get_inv_direct_stock_edits(self):
         """
@@ -2704,7 +2599,7 @@ class S3Config(Storage):
             Item Statuses which can also be Sent Shipment Types
         """
         T = current.T
-        return self.inv.get("item_status", {0: current.messages["NONE"], # Only Items with this Status can be allocated to shipments
+        return self.inv.get("item_status", {0: current.messages["NONE"],
                                             1: T("Dump"),
                                             2: T("Sale"),
                                             3: T("Reject"),
@@ -2806,12 +2701,6 @@ class S3Config(Storage):
         """
         return self.org.get("autocomplete", False)
 
-    def get_org_sector(self):
-        """
-            Whether to use an Organization Sector field 
-        """
-        return self.org.get("sector", False)
-
     def get_org_branches(self):
         """
             Whether to support Organisation Branches or not
@@ -2858,13 +2747,6 @@ class S3Config(Storage):
             'Network'
         """
         return self.org.get("groups", False)
-
-    def get_org_group_team_represent(self):
-        """
-            Whether to represent org_group affiliation in team
-            references (pr_group_id)
-        """
-        return self.org.get("group_team_represent", False)
 
     def get_org_regions(self):
         """
@@ -2950,7 +2832,7 @@ class S3Config(Storage):
         """
 
         enabled = False
-        dependent_fields = self.org.get("dependent_fields")
+        dependent_fields = self.org.get("dependent_fields", None)
         if dependent_fields:
             org_name_list = dependent_fields.get("%s.%s" % (tablename,
                                                             fieldname),
@@ -2964,9 +2846,6 @@ class S3Config(Storage):
                 else:
                     root_org = auth.root_org_name()
                     enabled = root_org in org_name_list
-            else:
-                # Enable if empty list
-                enabled = True
 
         if enable_field:
             field = current.s3db[tablename][fieldname]
@@ -2994,7 +2873,7 @@ class S3Config(Storage):
         """
             Function to provide the age group for an age
         """
-        fn = self.pr.get("age_group")
+        fn = self.pr.get("age_group", None)
         if fn:
             group = fn(age)
         else:
@@ -3010,12 +2889,6 @@ class S3Config(Storage):
             else:
                 group = "60+"
         return group
-
-    def get_pr_hide_third_gender(self):
-        """
-            Whether to hide the third gender ("Other")
-        """
-        return self.__lazy(self.pr, "hide_third_gender", default=True)
 
     def get_pr_import_update_requires_email(self):
         """
@@ -3064,12 +2937,6 @@ class S3Config(Storage):
         """
         return self.pr.get("search_shows_hr_details", True)
 
-    def get_pr_use_address(self):
-        """
-            Whether or not to show an address tab in person details
-        """
-        return self.pr.get("use_address", True)
-
     def get_pr_show_emergency_contacts(self):
         """
             Show emergency contacts as well as standard contacts in Person Contacts page
@@ -3080,10 +2947,7 @@ class S3Config(Storage):
         """
             Which tabs to show for contacts: all, public &/or private
         """
-        contacts_tabs = self.pr.get("contacts_tabs", ("all",))
-        if not contacts_tabs:
-            return () # iterable expected
-        return contacts_tabs
+        return self.pr.get("contacts_tabs", ("all",))
 
     # -------------------------------------------------------------------------
     # Proc
@@ -3133,12 +2997,6 @@ class S3Config(Storage):
         """
         return self.project.get("activity_filter_year", False)
 
-    def get_project_budget_monitoring(self):
-        """
-            Whether to Monitor Project Budgets
-        """
-        return self.project.get("budget_monitoring", False)
-
     def get_project_codes(self):
         """
             Use Codes in Projects
@@ -3151,35 +3009,11 @@ class S3Config(Storage):
         """
         return self.project.get("community", False)
 
-    def get_project_community_volunteers(self):
-        """
-            Manage Community Volunteers in Projects
-        """
-        return self.project.get("community_volunteers", False)
-
-    def get_project_details_tab(self):
-        """
-            Group Tabs on Projects into a single 'Details' page
-        """
-        return self.project.get("details_tab", False)
-
-    def get_project_goals(self):
-        """
-            Use Goals in Projects
-        """
-        return self.project.get("goals", False)
-
     def get_project_hazards(self):
         """
             Use Hazards in 3W Projects
         """
         return self.project.get("hazards", False)
-
-    def get_project_indicators(self):
-        """
-            Use Indicators in Projects
-        """
-        return self.project.get("indicators", False)
 
     #def get_project_locations_from_countries(self):
     #    """
@@ -3193,18 +3027,6 @@ class S3Config(Storage):
             Use Milestones in Projects & Tasks
         """
         return self.project.get("milestones", False)
-
-    def get_project_outcomes(self):
-        """
-            Use Outcomes in Projects
-        """
-        return self.project.get("outcomes", False)
-
-    def get_project_outputs(self):
-        """
-            Use Outputs in Projects
-        """
-        return self.project.get("outputs", "inline")
 
     def get_project_task_tag(self):
         """
@@ -3223,12 +3045,6 @@ class S3Config(Storage):
             Use Sectors in Projects
         """
         return self.project.get("sectors", True)
-
-    def get_project_programmes(self):
-        """
-            Use Programmes in Projects
-        """
-        return self.project.get("programmes", False)
 
     def get_project_themes(self):
         """
@@ -3286,7 +3102,7 @@ class S3Config(Storage):
                                                      4: T("Feedback"),
                                                      5: T("Blocked"),
                                                      6: T("On Hold"),
-                                                     7: T("Canceled"),
+                                                     7: T("Cancelled"),
                                                      8: T("Duplicate"),
                                                      9: T("Ready"),
                                                     10: T("Verified"),
@@ -3331,18 +3147,6 @@ class S3Config(Storage):
     def get_req_type_hrm_label(self):
         return current.T(self.req.get("type_hrm_label", "People"))
 
-    def get_req_copyable(self):
-        """
-            Provide a Copy button for Requests?
-        """
-        return self.req.get("copyable", False)
-
-    def get_req_recurring(self):
-        """
-            Do we allow creation of recurring requests?
-        """
-        return self.req.get("recurring", True)
-
     def get_req_requester_label(self):
         return current.T(self.req.get("requester_label", "Requester"))
 
@@ -3382,12 +3186,6 @@ class S3Config(Storage):
     def get_req_skill_quantities_writable(self):
         """ Whether People Quantities should be manually editable """
         return self.req.get("skill_quantities_writable", False)
-
-    def get_req_pack_values(self):
-        """
-            Do we show pack values in Requests?
-        """
-        return self.req.get("pack_values", True)
 
     def get_req_multiple_req_items(self):
         """
@@ -3459,7 +3257,7 @@ class S3Config(Storage):
 
     def get_req_req_crud_strings(self, type = None):
         return self.req.get("req_crud_strings") and \
-               self.req.req_crud_strings.get(type)
+               self.req.req_crud_strings.get(type, None)
 
     def get_req_use_req_number(self):
         return self.req.get("use_req_number", True)
@@ -3541,7 +3339,7 @@ class S3Config(Storage):
 
             @todo: move this documentation to the wiki?
         """
-        return self.xforms.get("resources")
+        return self.xforms.get("resources", None)
 
     # -------------------------------------------------------------------------
     # Frontpage Options
@@ -3640,32 +3438,5 @@ class S3Config(Storage):
         elif default:
             append("template:default")
         return result
-
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def __lazy(subset, key, default=None):
-        """
-            Resolve a "lazy" setting: when the config setting is callable,
-            call it once and store the result. A callable setting takes
-            the default value as parameter.
-
-            This method allows settings to depend on user authentication
-            (e.g. org-dependent variations), or involve database lookups,
-            which is only possible /after/ the initial config.py run.
-
-            Normal pattern:
-                return self.<subset>.get(key, default)
-
-            Lazy pattern:
-                return self.__lazy(self.<subset>, key, default)
-
-            @param subset: the subset of settings
-            @param key: the setting name
-            @param default: the default value
-        """
-        setting = subset.get(key, default)
-        if callable(setting):
-            setting = subset[key] = setting(default)
-        return setting
 
 # END =========================================================================

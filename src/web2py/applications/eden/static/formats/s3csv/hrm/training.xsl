@@ -46,7 +46,6 @@
     <xsl:key name="events" match="row" use="concat(col[@field='Facility'], '/',
                                                    col[@field='Course'], '/',
                                                    col[@field='Start'])"/>
-    <xsl:key name="trainingevents" match="row" use="col[@field='Training Event']"/>
 
     <!-- ****************************************************************** -->
     <xsl:template match="/">
@@ -147,57 +146,54 @@
 
         <xsl:if test="$TrainingEvent!=''">
             <!-- Training Event represent has been provided by csv_extra_fields, this needs to be decomposed -->
+            <xsl:variable name="head">
+                <xsl:value-of select="substring-before($TrainingEvent, '{')"/>
+            </xsl:variable>
             <xsl:variable name="CourseName">
-                <xsl:value-of select="substring-before($TrainingEvent, ' --')"/>
+                <xsl:value-of select="substring-before($head, '(')"/>
             </xsl:variable>
             <xsl:variable name="tail">
-                <xsl:value-of select="substring-after($TrainingEvent, '--')"/>
+                <xsl:value-of select="substring-after($TrainingEvent, '{')"/>
             </xsl:variable>
             <xsl:variable name="OfficeName">
-                <!-- enclosed in curly brackets -->
-                <xsl:value-of select="substring-before(substring-after($tail, '{'), '}')"/>
+                <xsl:value-of select="substring-before($tail, '}')"/>
             </xsl:variable>
             <xsl:variable name="StartDate">
-                <!-- enclosed in square brackets -->
-                <xsl:value-of select="substring-before(substring-after($tail, '['), ']')"/>
+                <xsl:value-of select="substring-after($tail, '[')"/>
+            </xsl:variable>
+            <xsl:variable name="StartDate">
+                <xsl:value-of select="substring-before($tail, ']')"/>
             </xsl:variable>
 
-            <xsl:if test="$CourseName!=''">
-                <resource name="hrm_course">
+            <resource name="hrm_course">
+                <xsl:attribute name="tuid">
+                    <xsl:value-of select="$CourseName"/>
+                </xsl:attribute>
+                <data field="name"><xsl:value-of select="$CourseName"/></data>
+            </resource>
+            <resource name="org_office">
+                <xsl:attribute name="tuid">
+                    <xsl:value-of select="$OfficeName"/>
+                </xsl:attribute>
+                <data field="name"><xsl:value-of select="$OfficeName"/></data>
+            </resource>
+            <resource name="hrm_training_event">
+                <xsl:attribute name="tuid">
+                    <xsl:value-of select="concat('TrainingEvent/',
+                                                 $TrainingEvent)"/>
+                </xsl:attribute>
+                <data field="start_date"><xsl:value-of select="$StartDate"/></data>
+                <!-- Link to Course -->
+                <reference field="course_id" resource="hrm_course">
                     <xsl:attribute name="tuid">
                         <xsl:value-of select="$CourseName"/>
                     </xsl:attribute>
-                    <data field="name"><xsl:value-of select="$CourseName"/></data>
-                </resource>
-                <xsl:if test="$OfficeName!=''">
-                    <resource name="org_office">
-                        <xsl:attribute name="tuid">
-                            <xsl:value-of select="$OfficeName"/>
-                        </xsl:attribute>
-                        <data field="name"><xsl:value-of select="$OfficeName"/></data>
-                    </resource>
-                </xsl:if>
-                <resource name="hrm_training_event">
-                    <xsl:attribute name="tuid">
-                        <xsl:value-of select="concat('TrainingEvent/', $TrainingEvent)"/>
-                    </xsl:attribute>
-                    <data field="start_date"><xsl:value-of select="$StartDate"/></data>
-                    <!-- Link to Course -->
-                    <reference field="course_id" resource="hrm_course">
-                        <xsl:attribute name="tuid">
-                            <xsl:value-of select="$CourseName"/>
-                        </xsl:attribute>
-                    </reference>
-                    <!-- Link to Site -->
-                    <xsl:if test="$OfficeName!=''">
-                        <reference field="site_id" resource="org_office">
-                            <xsl:attribute name="tuid">
-                                <xsl:value-of select="$OfficeName"/>
-                            </xsl:attribute>
-                        </reference>
-                    </xsl:if>
-                </resource>
-            </xsl:if>
+                </reference>
+                <!-- Link to Site -->
+                <reference field="site_id" resource="org_office">
+                    <xsl:value-of select="$OfficeName"/>
+                </reference>
+            </resource>
         </xsl:if>
     </xsl:template>
 
@@ -255,27 +251,19 @@
     <xsl:template match="row">
 
         <xsl:variable name="SiteName" select="col[@field='Facility']/text()"/>
+        <xsl:variable name="CourseName" select="col[@field='Course']/text()"/>
         <xsl:variable name="StartDate" select="col[@field='Start']/text()"/>
         <xsl:variable name="EndDate" select="col[@field='End']/text()"/>
         <xsl:variable name="Hours" select="col[@field='Hours']/text()"/>
         <xsl:variable name="TrainingEvent" select="col[@field='Training Event']/text()"/>
-        <xsl:variable name="CourseName">
-            <xsl:choose>
-                <xsl:when test="$TrainingEvent!=''">
-                    <xsl:value-of select="substring-before($TrainingEvent, ' --')"/>
-                </xsl:when>
-                <xsl:otherwise>
-                    <xsl:value-of select="col[@field='Course']/text()"/>
-                </xsl:otherwise>
-            </xsl:choose>
-        </xsl:variable>
 
         <resource name="hrm_training">
             <xsl:choose>
                 <xsl:when test="$TrainingEvent!=''">
                     <reference field="training_event_id" resource="hrm_training_event">
                         <xsl:attribute name="tuid">
-                            <xsl:value-of select="concat('TrainingEvent/', $TrainingEvent)"/>
+                            <xsl:value-of select="concat('TrainingEvent/',
+                                                         $TrainingEvent)"/>
                         </xsl:attribute>
                     </reference>
                 </xsl:when>

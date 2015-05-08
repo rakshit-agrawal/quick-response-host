@@ -53,7 +53,6 @@ __all__ = ("single_phone_number_pattern",
            "IS_ONE_OF_EMPTY",
            "IS_ONE_OF_EMPTY_SELECT",
            "IS_NOT_ONE_OF",
-           "IS_PERSON_GENDER",
            "IS_PHONE_NUMBER",
            "IS_PROCESSED_IMAGE",
            "IS_SITE_SELECTOR",
@@ -83,8 +82,7 @@ from gluon import *
 from gluon.storage import Storage
 from gluon.validators import Validator
 
-from s3datetime import S3DateTime
-from s3utils import s3_orderby_fields, s3_unicode, s3_validate
+from s3utils import S3DateTime, s3_orderby_fields, s3_unicode, s3_validate
 
 def translate(text):
     if text is None:
@@ -2200,8 +2198,8 @@ class IS_ADD_PERSON_WIDGET2(Validator):
                 # Ok!
                 return value, None
 
-            post_vars = request.post_vars
-            mobile = post_vars["mobile_phone"]
+            _vars = request.post_vars
+            mobile = _vars["mobile_phone"]
             if mobile:
                 # Validate the mobile phone number
                 validator = IS_PHONE_NUMBER(international = True)
@@ -2209,7 +2207,7 @@ class IS_ADD_PERSON_WIDGET2(Validator):
                 if error:
                     return (person_id, error)
 
-            home_phone = post_vars.get("home_phone", None)
+            home_phone = _vars.get("home_phone", None)
             if home_phone:
                 # Validate the home phone number
                 validator = IS_PHONE_NUMBER()
@@ -2220,20 +2218,20 @@ class IS_ADD_PERSON_WIDGET2(Validator):
             #if person_id:
             #    # Filter out location_id (location selector form values
             #    # being processed only after this widget has been validated)
-            #    post_vars = Storage([(k, post_vars[k])
-            #                         for k in post_vars if k != "location_id"])
+            #    _vars = Storage([(k, _vars[k])
+            #                     for k in _vars if k != "location_id"])
 
             #    # Separate the Name into components
-            #    first_name, middle_name, last_name = name_split(post_vars["full_name"])
-            #    post_vars["first_name"] = first_name
-            #    post_vars["middle_name"] = middle_name
-            #    post_vars["last_name"] = last_name
+            #    first_name, middle_name, last_name = name_split(_vars["full_name"])
+            #    _vars["first_name"] = first_name
+            #    _vars["middle_name"] = middle_name
+            #    _vars["last_name"] = last_name
 
             #    # Validate and update the person record
             #    query = (ptable.id == person_id)
             #    data = Storage()
-            #    for f in ptable._filter_fields(post_vars):
-            #        value, error = s3_validate(ptable, f, post_vars[f])
+            #    for f in ptable._filter_fields(_vars):
+            #        value, error = s3_validate(ptable, f, _vars[f])
             #        if error:
             #            return (person_id, error)
             #        if value:
@@ -2251,7 +2249,7 @@ class IS_ADD_PERSON_WIDGET2(Validator):
             #        pe_id = record.pe_id
 
             #        r = ctable(pe_id=pe_id, contact_method="EMAIL")
-            #        email = post_vars["email"]
+            #        email = _vars["email"]
             #        if email:
             #            query = (ctable.pe_id == pe_id) & \
             #                    (ctable.contact_method == "EMAIL") &\
@@ -2294,7 +2292,7 @@ class IS_ADD_PERSON_WIDGET2(Validator):
             #                              contact_method="HOME_PHONE",
             #                              value=home_phone)
 
-            #        occupation = post_vars.get("occupation", None)
+            #        occupation = _vars.get("occupation", None)
             #        if occupation:
             #            pdtable = s3db.pr_person_details
             #            query = (pdtable.person_id == person_id) & \
@@ -2313,33 +2311,33 @@ class IS_ADD_PERSON_WIDGET2(Validator):
 
             # Filter out location_id (location selector form values
             # being processed only after this widget has been validated)
-            post_vars = Storage([(k, post_vars[k])
-                                 for k in post_vars if k != "location_id"])
+            _vars = Storage([(k, _vars[k])
+                             for k in _vars if k != "location_id"])
 
-            fullname = post_vars["full_name"]
+            fullname = _vars["full_name"]
             if not fullname and self.allow_empty:
                 return None, None
 
             # Validate the email
-            email, error = email_validate(post_vars.email, None)
+            email, error = email_validate(_vars.email, None)
             if error:
                 return (None, error)
 
             # Separate the Name into components
             first_name, middle_name, last_name = name_split(fullname)
-            post_vars["first_name"] = first_name
-            post_vars["middle_name"] = middle_name
-            post_vars["last_name"] = last_name
+            _vars["first_name"] = first_name
+            _vars["middle_name"] = middle_name
+            _vars["last_name"] = last_name
 
             # Validate and add the person record
-            for f in ptable._filter_fields(post_vars):
-                value, error = s3_validate(ptable, f, post_vars[f])
+            for f in ptable._filter_fields(_vars):
+                value, error = s3_validate(ptable, f, _vars[f])
                 if error:
                     return (None, error)
                 elif f == "date_of_birth" and \
                     value:
-                    post_vars[f] = value.isoformat()
-            person_id = ptable.insert(**ptable._filter_fields(post_vars))
+                    _vars[f] = value.isoformat()
+            person_id = ptable.insert(**ptable._filter_fields(_vars))
 
             # Need to update post_vars here,
             # for some reason this doesn't happen through validation alone
@@ -2348,36 +2346,27 @@ class IS_ADD_PERSON_WIDGET2(Validator):
             if person_id:
                 # Update the super-entities
                 s3db.update_super(ptable, dict(id=person_id))
-                # Update realm
-                current.auth.s3_set_record_owner(ptable, person_id)
                 # Read the created pe_id
                 query = (ptable.id == person_id)
                 person = db(query).select(ptable.pe_id,
                                           limitby=(0, 1)).first()
 
                 # Add contact information as provided
-                if post_vars.email:
+                if _vars.email:
                     ctable.insert(pe_id=person.pe_id,
                                   contact_method="EMAIL",
-                                  value=post_vars.email)
+                                  value=_vars.email)
                 if mobile:
                     ctable.insert(pe_id=person.pe_id,
                                   contact_method="SMS",
-                                  value=post_vars.mobile_phone)
+                                  value=_vars.mobile_phone)
                 if home_phone:
                     ctable.insert(pe_id=person.pe_id,
                                   contact_method="HOME_PHONE",
-                                  value=post_vars.home_phone)
-                details = {}
-                if post_vars.occupation:
-                    details["occupation"] = post_vars.occupation
-                if post_vars.father_name:
-                    details["father_name"] = post_vars.father_name
-                if post_vars.grandfather_name:
-                    details["grandfather_name"] = post_vars.grandfather_name
-                if details:
-                    details["person_id"] = person_id
-                    s3db.pr_person_details.insert(**details)
+                                  value=_vars.home_phone)
+                if _vars.occupation:
+                    s3db.pr_person_details.insert(person_id = person_id,
+                                                  occupation = _vars.occupation)
             else:
                 # Something went wrong
                 return (person_id, self.error_message or \
@@ -2488,21 +2477,23 @@ class IS_UTC_OFFSET(Validator):
             passes through.
     """
 
-    def __init__(self, error_message="invalid UTC offset!"):
-
+    def __init__(self,
+                 error_message="invalid UTC offset!"
+                ):
         self.error_message = error_message
 
     # -------------------------------------------------------------------------
     def __call__(self, value):
 
         if value and isinstance(value, str):
+            _offset_str = value.strip()
 
-            offset = S3DateTime.get_offset_value(value)
-            if offset is not None:
-                hours, seconds = divmod(abs(offset), 3600)
-                minutes = int(seconds / 60)
-                sign = "-" if offset < 0 else "+"
-                return ("%s%02d%02d" % (sign, hours, minutes), None)
+            offset = S3DateTime.get_offset_value(_offset_str)
+
+            if offset is not None and offset > -86340 and offset < 86340:
+                # Add a leading 'UTC ',
+                # otherwise leading '+' and '0' will be stripped away by web2py
+                return ("UTC " + _offset_str[-5:], None)
 
         return (value, self.error_message)
 
@@ -2577,9 +2568,10 @@ class IS_UTC_DATETIME(Validator):
             self.utc_offset = utc_offset
         if self.utc_offset is None:
             self.utc_offset = current.session.s3.utc_offset
-        offset, error = IS_UTC_OFFSET()(self.utc_offset)
+        validate = IS_UTC_OFFSET()
+        offset, error = validate(self.utc_offset)
         if error:
-            self.utc_offset = "+0000" # fallback to UTC
+            self.utc_offset = "UTC +0000" # fallback to UTC
         else:
             self.utc_offset = offset
         delta = S3DateTime.get_offset_value(self.utc_offset)
@@ -2594,7 +2586,7 @@ class IS_UTC_DATETIME(Validator):
         if len(val) > 5 and val[-5] in ("+", "-") and val[-4:].isdigit():
             # UTC offset specified in dtstr
             dtstr = val[0:-5].strip()
-            utc_offset = val[-5:]
+            utc_offset = "UTC %s" % val[-5:]
         else:
             # use default UTC offset
             dtstr = val
@@ -2928,21 +2920,6 @@ class IS_TIME_INTERVAL_WIDGET(Validator):
             return (0, None)
         seconds = val * mul
         return (seconds, None)
-
-# =============================================================================
-class IS_PERSON_GENDER(IS_IN_SET):
-    """
-        Special validator for pr_person.gender and derivates,
-        accepts the "O" option even if it's not in the set.
-    """
-
-    def __call__(self, value):
-
-        if value == 4:
-            # 4 = other, always accepted even if hidden
-            return value, None
-        else:
-            return super(IS_PERSON_GENDER, self).__call__(value)
 
 # =============================================================================
 class IS_PHONE_NUMBER(Validator):

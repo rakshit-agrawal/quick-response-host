@@ -55,7 +55,6 @@ except ImportError:
 from gluon import *
 from gluon.storage import Storage
 
-from s3datetime import s3_parse_datetime, s3_utc
 from s3rest import S3Method
 from s3import import S3ImportItem
 from s3query import S3URLQuery
@@ -347,7 +346,13 @@ class S3Sync(S3Method):
                 limit = None
         msince = _vars.get("msince", None)
         if msince is not None:
-            msince = s3_parse_datetime(msince)
+            tfmt = current.xml.ISOFORMAT
+            try:
+                (y, m, d, hh, mm, ss, t0, t1, t2) = \
+                    time.strptime(msince, tfmt)
+                msince = datetime.datetime(y, m, d, hh, mm, ss)
+            except ValueError:
+                msince = None
 
         # Sync filters from peer
         filters = {}
@@ -450,7 +455,13 @@ class S3Sync(S3Method):
                 conflict_policy = default_conflict_policy
             msince = r.get_vars.get("msince", None)
             if msince is not None:
-                last_sync = s3_parse_datetime(msince)
+                tfmt = current.xml.ISOFORMAT
+                try:
+                    (y, m, d, hh, mm, ss, t0, t1, t2) = \
+                        time.strptime(msince, tfmt)
+                    last_sync = datetime.datetime(y, m, d, hh, mm, ss)
+                except ValueError:
+                    last_sync = None
             s = r.get_vars.get("strategy", None)
             if s:
                 s = str(s).split(",")
@@ -572,7 +583,7 @@ class S3Sync(S3Method):
                     # Accept if newer
                     xml = current.xml
                     if xml.MTIME in original and \
-                       s3_utc(original[xml.MTIME]) <= item.mtime:
+                       xml.as_utc(original[xml.MTIME]) <= item.mtime:
                         _debug("Accept because newer")
                         item.conflict = False
                     else:

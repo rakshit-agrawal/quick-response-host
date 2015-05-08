@@ -90,8 +90,6 @@ def config(settings):
     # The key 0 implies not realm restricted
     # The keys "organisation_id" and "site_id" can be used to indicate the user's "organisation_id" and "site_id"
     #settings.auth.registration_roles = { 0: ["STAFF", "PROJECT_EDIT"]}
-    # Define which entity types to use as realm entities in role manager
-    #settings.auth.realm_entity_types = ("org_organisation",)
     # Uncomment to activate entity role manager tabs for OrgAdmins
     #settings.auth.entity_role_manager = True
     # Define modules for entity role manager
@@ -157,7 +155,7 @@ def config(settings):
     # Uncomment to Hide the language toolbar
     #settings.L10n.display_toolbar = False
     # Default timezone for users
-    #settings.L10n.utc_offset = "+0000"
+    #settings.L10n.utc_offset = "UTC +0000"
     # Uncomment these to use US-style dates in English
     #settings.L10n.date_format = "%m-%d-%Y"
     #settings.L10n.time_format = "%H:%M:%S"
@@ -430,8 +428,6 @@ def config(settings):
 
     # -------------------------------------------------------------------------
     # CMS
-    # Uncomment this to hide CMS from module index pages
-    #settings.cms.hide_index = True
     # Uncomment to use Bookmarks in Newsfeed
     #settings.cms.bookmarks = True
     # Uncomment to use have Filter form in Newsfeed be open by default
@@ -481,8 +477,6 @@ def config(settings):
     # Persons
     # Uncomment to allow person imports to match even without email addresses
     #settings.pr.import_update_requires_email = False
-    # Uncomment this to enable support for third gender
-    #settings.pr.hide_third_gender = False
     # Uncomment to a fuzzy search for duplicates in the new AddPersonWidget2
     #settings.pr.lookup_duplicates = True
     # Uncomment to hide fields in S3AddPersonWidget[2]
@@ -498,8 +492,6 @@ def config(settings):
     #settings.pr.search_shows_hr_details = False
     # Uncomment to hide Emergency Contacts in Person Contacts page
     #settings.pr.show_emergency_contacts = False
-    # Uncomment to hide the Address tab in person details
-    #settings.pr.use_address = False
     # Show separate Public and Private Contacts Tabs
     #settings.pr.contacts_tabs = ("public", "private")
 
@@ -507,8 +499,6 @@ def config(settings):
     # Organisations
     # Uncomment to use an Autocomplete for Organisation lookup fields
     #settings.org.autocomplete = True
-    # Enable the Organisation Sector field
-    #settings.org.sector = True
     # Enable the use of Organisation Branches
     #settings.org.branches = True
     # Show branches as tree rather than as table
@@ -610,8 +600,8 @@ def config(settings):
     #settings.hrm.show_organisation = True
     # Uncomment to consolidate tabs into a single CV
     #settings.hrm.cv_tab = True
-    # Uncomment to consolidate tabs into Staff Record (set to False to hide the tab)
-    #settings.hrm.record_tab = "record"
+    # Uncomment to consolidate tabs into Staff Record
+    #settings.hrm.record_tab = True
     # Uncomment to disable the use of Volunteer Awards
     #settings.hrm.use_awards = False
     # Uncomment to disable the use of HR Certificates
@@ -636,8 +626,6 @@ def config(settings):
     #settings.hrm.teams = False
     # Uncomment to disable the use of HR Trainings
     #settings.hrm.use_trainings = False
-    # Uncomment this to configure tracking of internal/external training instructors
-    #settings.hrm.training_instructors = "external"
     # Uncomment to use activity types in experience record, specify as {"code":"label", ...}
     #settings.hrm.activity_types = {"rdrt": "RDRT Mission"}
 
@@ -701,8 +689,6 @@ def config(settings):
     #settings.req.type_hrm_label = "Volunteers"
     # Label for Requester
     #settings.req.requester_label = "Site Contact"
-    # Uncomment to disable Recurring Request
-    #settings.req.recurring = False
     #settings.req.requester_optional = True
     # Uncomment if the User Account logging the Request is NOT normally the Requester
     #settings.req.requester_is_author = False
@@ -800,16 +786,12 @@ def config(settings):
     #settings.project.community = True
     # Uncomment this to enable Hazards in 3W projects
     #settings.project.hazards = True
-    # Uncomment this to enable Indicators in projects
-    #settings.project.indicators = True
     # Uncomment this to enable Milestones in projects
     #settings.project.milestones = True
     # Uncomment this to use Projects for Activities & Tasks
     #settings.project.projects = True
     # Uncomment this to disable Sectors in projects
     #settings.project.sectors = False
-    # Uncomment this to enable Programmes in projects
-    #settings.project.programmes = True
     # Uncomment this to use Tags in Tasks
     #settings.project.task_tag = True
     # Uncomment this to enable Themes in 3W projects
@@ -952,10 +934,10 @@ def config(settings):
             module_type = 2,
         )),
         ("cms", Storage(
-            name_nice = T("Content Management"),
-            #description = "Content Management System",
-            restricted = True,
-            module_type = 10,
+        name_nice = T("Content Management"),
+        #description = "Content Management System",
+        restricted = True,
+        module_type = 10,
         )),
         ("doc", Storage(
             name_nice = T("Documents"),
@@ -1131,12 +1113,6 @@ def config(settings):
         #("patient", Storage(
         #    name_nice = T("Patient Tracking"),
         #    #description = "Tracking of Patients",
-        #    restricted = True,
-        #    module_type = 10
-        #)),
-        #("po", Storage(
-        #    name_nice = T("Population Outreach"),
-        #    #description = "Population Outreach",
         #    restricted = True,
         #    module_type = 10
         #)),

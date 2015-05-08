@@ -703,7 +703,7 @@ class S3LocationModel(S3Model):
           If the record is a duplicate then it will set the item method to update
 
           Rules for finding a duplicate:
-           - If there is no level, then deduplicate based on the address
+           - Don't do deduplication if there is no level
            - Look for a record with the same name, ignoring case
            - If no match, also check name_l10n
            - If parent exists in the import, the same parent
@@ -715,48 +715,22 @@ class S3LocationModel(S3Model):
                    - make a deployment_setting for relevant function?
         """
 
+        table = item.table
         data = item.data
-        name = data.get("name")
+        name = data.get("name", None)
 
         if not name:
             return
 
-        level = data.get("level")
+        level = data.get("level", None)
         if not level:
-            address = data.get("addr_street")
-            if not address:
-                # Don't deduplicate precise locations as hard to ensure these have unique names
-                return
-            table = item.table
-            query = (table.addr_street == address) & \
-                    (table.deleted != True)
-            postcode = data.get("addr_postcode")
-            if postcode:
-                query &= (table.addr_postcode == postcode)
-            parent = data.get("parent")
-            if parent:
-                query &= (table.parent == parent)
-            duplicate = current.db(query).select(table.id,
-                                                 limitby=(0, 1)).first()
-            if duplicate:
-                item.id = duplicate.id
-                item.method = item.METHOD.UPDATE
+            # Don't deduplicate precise locations as hard to ensure these have unique names
             return
 
         # Don't try to update Countries
-        MAP_ADMIN = current.auth.s3_has_role(current.session.s3.system_roles.MAP_ADMIN)
         if level == "L0":
             item.method = None
-            if not MAP_ADMIN:
-                item.skip = True
             return
-
-        def skip(level, location_id):
-            if not MAP_ADMIN:
-                return not gis_hierarchy_editable(level, location_id)
-            return False
-
-        table = item.table
 
         code = current.deployment_settings.get_gis_lookup_code()
         if code:
@@ -767,7 +741,6 @@ class S3LocationModel(S3Model):
                     (kv_table.location_id == table.id)
             duplicate = current.db(query).select(table.id,
                                                  table.name,
-                                                 table.level,
                                                  orderby=~table.end_date,
                                                  limitby=(0, 1)).first()
 
@@ -777,12 +750,11 @@ class S3LocationModel(S3Model):
                 data.name = duplicate.name # Don't update the name with the code
                 item.id = duplicate.id
                 item.method = item.METHOD.UPDATE
-                item.skip = skip(duplicate.level, duplicate.id)
                 return
 
-        parent = data.get("parent")
-        start_date = data.get("start_date")
-        end_date = data.get("end_date")
+        parent = data.get("parent", None)
+        start_date = data.get("start_date", None)
+        end_date = data.get("end_date", None)
 
         # @ToDo: check the the lat and lon if they exist?
         #lat = "lat" in data and data.lat
@@ -802,7 +774,6 @@ class S3LocationModel(S3Model):
                       (table.end_date == None))
 
         duplicate = current.db(query).select(table.id,
-                                             table.level,
                                              orderby=~table.end_date,
                                              limitby=(0, 1)).first()
         if duplicate:
@@ -810,7 +781,6 @@ class S3LocationModel(S3Model):
             #current.log.debug("Location Match")
             item.id = duplicate.id
             item.method = item.METHOD.UPDATE
-            item.skip = skip(duplicate.level, duplicate.id)
             return
 
         elif current.deployment_settings.get_L10n_translate_gis_location():
@@ -828,7 +798,6 @@ class S3LocationModel(S3Model):
 
             duplicate = current.db(query).select(table.id,
                                                  table.name,
-                                                 table.level,
                                                  orderby=~table.end_date,
                                                  limitby=(0, 1)).first()
             if duplicate:
@@ -837,7 +806,6 @@ class S3LocationModel(S3Model):
                 data.name = duplicate.name # Don't update the name
                 item.id = duplicate.id
                 item.method = item.METHOD.UPDATE
-                item.skip = skip(duplicate.level, duplicate.id)
             else:
                 # @ToDo: Import Log
                 #current.log.debug("No Match", name)
@@ -1020,8 +988,7 @@ class S3LocationModel(S3Model):
         if (not limit or limit > MAX_SEARCH_RESULTS) and \
            resource.count() > MAX_SEARCH_RESULTS:
             output = json.dumps([
-                dict(label=str(current.T("There are more than %(max)s results, please input more characters.") % \
-                    dict(max=MAX_SEARCH_RESULTS)))
+                dict(label=str(current.T("There are more than %(max)s results, please input more characters.") % dict(max=MAX_SEARCH_RESULTS)))
                 ], separators=SEPARATORS)
 
         elif loc_select:
@@ -1536,40 +1503,12 @@ class S3LocationHierarchyModel(S3Model):
         )
 
         self.configure(tablename,
-                       deduplicate = self.gis_hierarchy_deduplicate,
                        onvalidation = self.gis_hierarchy_onvalidation,
                        )
 
         # Pass names back to global scope (s3.*)
         return dict(gis_hierarchy_form_setup = self.gis_hierarchy_form_setup,
                     )
-
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def gis_hierarchy_deduplicate(item):
-        """
-          This callback will be called when importing Hierarchy records it will look
-          to see if the record being imported is a duplicate.
-
-          @param item: An S3ImportJob object which includes all the details
-                      of the record being imported
-
-          If the record is a duplicate then it will set the item method to update
-
-        """
-
-        location_id = item.data.get("location_id")
-        if not location_id:
-            return
-
-        # Match by location_id
-        table = item.table
-        query = (table.location_id == location_id)
-        duplicate = current.db(query).select(table.id,
-                                             limitby=(0, 1)).first()
-        if duplicate:
-            item.id = duplicate.id
-            item.method = item.METHOD.UPDATE
 
     # -------------------------------------------------------------------------
     @staticmethod
@@ -5642,19 +5581,15 @@ class gis_LocationRepresent(S3Represent):
                     represent = name or "ID: %s" % row.id
 
                 if has_lat_lon and self.show_marker_icon:
-                    if not self.show_link:
-                        popup = current.deployment_settings.get_gis_popup_location_link()
-                        script = '''s3_viewMap(%i,%i,'%s');return false''' % (row.id,
-                                                                              self.iheight,
-                                                                              popup)
-                    else:
-                        # Already inside a link with onclick-script
-                        script = None
+                    popup = current.deployment_settings.get_gis_popup_location_link()
+                    script = '''s3_viewMap(%i,%i,'%s');return false''' % (row.id,
+                                                                          self.iheight,
+                                                                          popup)
                     represent = SPAN(s3_unicode(represent),
-                                     ICON("map-marker",
-                                          _title=self.lat_lon_represent(row),
-                                          _onclick=script,
-                                          ),
+                                     I(_class="icon icon-map-marker",
+                                       _title=self.lat_lon_represent(row),
+                                       _onclick=script,
+                                       ),
                                      _class="gis-display-feature",
                                      )
                     return represent

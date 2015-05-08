@@ -954,13 +954,6 @@ class S3LocationFilter(S3FilterWidget):
             if "multiselect-filter-widget" not in _class:
                 _class = "%s multiselect-filter-widget" % _class
 
-            header_opt = opts.get("header", False)
-            if header_opt is False or header_opt is True:
-                setting = current.deployment_settings \
-                                 .get_ui_location_filter_bulk_select_option()
-                if setting is not None:
-                    header_opt = setting
-
             # Add one widget per level
             first = True
             hide = True
@@ -974,7 +967,7 @@ class S3LocationFilter(S3FilterWidget):
                 # Find relevant values to pre-populate the widget
                 _values = values.get("%s$%s__%s" % (fname, level, operator))
                 w = S3MultiSelectWidget(filter = opts.get("filter", "auto"),
-                                        header = header_opt,
+                                        header = opts.get("header", False),
                                         selectedList = opts.get("selectedList", 3),
                                         noneSelectedText = T("Select %(location)s") % \
                                                              dict(location=levels[level]["label"]))
@@ -1716,7 +1709,7 @@ class S3OptionsFilter(S3FilterWidget):
             numeric = rfield.ftype in ("integer", "id") or \
                       rfield.ftype[:9] == "reference"
             for _val in values:
-                if numeric and _val is not None:
+                if numeric:
                     try:
                         val = int(_val)
                     except ValueError:
@@ -1833,11 +1826,11 @@ class S3OptionsFilter(S3FilterWidget):
                 none = current.messages["NONE"]
             options.append((None, none))
 
-        if not opts.get("multiple", True) and not self.values:
+        if not opts.get("multiple") and not self.values:
             # Browsers automatically select the first option in single-selects,
             # but that doesn't filter the data, so the first option must be
             # empty if we don't have a default:
-            options.insert(0, ("", "")) # XML("&nbsp;") better?
+            options.insert(0, ("", ""))
 
         # Sort the options
         return (ftype, options, None)
@@ -1873,16 +1866,12 @@ class S3HierarchyFilter(S3FilterWidget):
     """
         Filter widget for hierarchical types
 
-        Specific options (see also: S3HierarchyWidget):
+        Specific options:
 
             lookup              name of the lookup table
             represent           representation method for the key
             multiple            allow selection of multiple options
             leafonly            only lead nodes can be selected
-            cascade             automatically select child nodes when
-                                selecting a parent node
-            bulk_select         provide an option to select/deselect all
-                                nodes
     """
 
     _class = "hierarchy-filter"
@@ -1912,18 +1901,11 @@ class S3HierarchyFilter(S3FilterWidget):
 
         # Instantiate the widget
         opts = self.opts
-        bulk_select = current.deployment_settings \
-                             .get_ui_hierarchy_filter_bulk_select_option()
-        if bulk_select is None:
-            bulk_select = opts.get("bulk_select", False)
         w = S3HierarchyWidget(lookup = opts.get("lookup"),
                               represent = opts.get("represent"),
                               multiple = opts.get("multiple", True),
                               leafonly = opts.get("leafonly", True),
-                              cascade = opts.get("cascade", False),
-                              bulk_select = bulk_select,
                               filter = opts.get("filter"),
-                              none = opts.get("none"),
                               )
 
         # Render the widget

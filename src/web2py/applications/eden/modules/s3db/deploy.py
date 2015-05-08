@@ -1268,7 +1268,6 @@ def deploy_member_filter(status=False):
             widgets.insert(1, S3HierarchyFilter("organisation_id$region_id",
                                                 lookup="org_region",
                                                 hidden=True,
-                                                none=T("No Region"),
                                                 ))
         else:
             widgets.insert(1, S3OptionsFilter("organisation_id$region_id",
@@ -1333,9 +1332,7 @@ class deploy_Inbox(S3Method):
                             filters = None
                         query = ~(FS("id").belongs(selected))
                         mresource = s3db.resource("msg_email",
-                                                  filter=query,
-                                                  vars=filters,
-                                                  )
+                                                filter=query, vars=filters)
                         if response.s3.filter:
                             mresource.add_filter(response.s3.filter)
                         rows = mresource.select(["id"], as_rows=True)
@@ -2098,7 +2095,7 @@ def deploy_response_select_mission(r, **attr):
             for a in atts:
                 url = URL(c="default", f="download",
                           args=a.file)
-                attachments.append(TR(TD(A(ICON("attachment"),
+                attachments.append(TR(TD(A(I(" ", _class="icon icon-paperclip"),
                                            a.name,
                                            _href=url))))
         else:
@@ -2429,10 +2426,10 @@ class deploy_MissionProfileLayout(S3DataListLayout):
             # Has this alert been sent?
             sent = True if raw["deploy_alert.message_id"] else False
             if sent:
-                status = SPAN(ICON("sent"),
+                status = SPAN(I(_class="icon icon-sent"),
                               T("sent"), _class="alert-status")
             else:
-                status = SPAN(ICON("unsent"),
+                status = SPAN(I(_class="icon icon-unsent"),
                               T("not sent"), _class="red alert-status")
 
             # Message
@@ -2455,7 +2452,7 @@ class deploy_MissionProfileLayout(S3DataListLayout):
             # Workflow
             if not sent and total_recipients and \
                has_permission("update", table, record_id=record_id):
-                send = A(ICON("mail"),
+                send = A(I(" ", _class="icon icon-envelope-alt"),
                          SPAN(T("Send this Alert"),
                               _class="card-action"),
                          _onclick="window.location.href='%s'" %
@@ -2515,7 +2512,7 @@ class deploy_MissionProfileLayout(S3DataListLayout):
                     doc_url = URL(c="default", f="download",
                                 args=[doc])
                     if bootstrap:
-                        doc_item = LI(A(ICON("file"),
+                        doc_item = LI(A(I(_class="icon-file"),
                                         " ",
                                         doc_name,
                                         _href=doc_url,
@@ -2523,15 +2520,15 @@ class deploy_MissionProfileLayout(S3DataListLayout):
                                     _role="menuitem",
                                     )
                     else:
-                        doc_item = A(ICON("file"),
-                                     " ",
-                                     doc_name,
-                                     _href=doc_url,
-                                     )
+                        doc_item = A(I(_class="icon-file"),
+                                    " ",
+                                    doc_name,
+                                    _href=doc_url,
+                                    )
                     docs.append(doc_item)
                     docs.append(", ")
                 if bootstrap:
-                    docs = DIV(A(ICON("attachment"),
+                    docs = DIV(A(I(_class="icon-paper-clip"),
                                 SPAN(_class="caret"),
                                 _class="btn dropdown-toggle",
                                 _href="#",
@@ -2607,17 +2604,17 @@ class deploy_MissionProfileLayout(S3DataListLayout):
             # Workflow
             if human_resource_id:
                 if hasattr(self, "deployed") and human_resource_id in self.deployed:
-                    deploy = A(ICON("deployed"),
+                    deploy = A(I(" ", _class="icon icon-deployed"),
                                SPAN(T("Member Deployed"),
                                     _class="card-action"),
-                               _class="action-lnk",
-                               )
+                               _class="action-lnk"
+                             )
                 elif has_permission("create", "deploy_assignment"):
                     mission_id = raw["deploy_response.mission_id"]
                     url = URL(f="mission",
                               args=[mission_id, "assignment", "create"],
                               vars={"member_id": human_resource_id})
-                    deploy = A(ICON("deploy"),
+                    deploy = A(I(" ", _class="icon icon-deploy"),
                                SPAN(T("Deploy this Member"),
                                     _class="card-action"),
                                _href=url,
@@ -2680,7 +2677,7 @@ class deploy_MissionProfileLayout(S3DataListLayout):
                           vars={"refresh": list_id,
                                 "record": record_id
                                })
-                edit = A(ICON("attachment"),
+                edit = A(I(" ", _class="icon icon-paperclip"),
                          SPAN(EDIT_APPRAISAL, _class="card-action"),
                          _href=url,
                          _class="s3_modal action-lnk",
@@ -2704,7 +2701,7 @@ class deploy_MissionProfileLayout(S3DataListLayout):
                                 "refresh": list_id,
                                 "record": record_id,
                                })
-                upload = A(ICON("upload"),
+                upload = A(I(" ", _class="icon icon-paperclip"),
                            SPAN(UPLOAD_APPRAISAL, _class="card-action"),
                            _href=url,
                            _class="s3_modal action-lnk",
@@ -2802,19 +2799,19 @@ class deploy_MissionProfileLayout(S3DataListLayout):
 
         if update_url and \
            has_permission("update", table, record_id=record_id):
-            btn = A(ICON("edit"),
+            btn = A(I(" ", _class="icon icon-edit"),
                     _href=update_url,
                     _class="s3_modal",
                     _title=crud_string(tablename, "title_update"))
             toolbox.append(btn)
         elif open_url:
-            btn = A(ICON("file-alt"),
+            btn = A(I(" ", _class="icon icon-file-alt"),
                     _href=open_url,
                     _title=crud_string(tablename, "title_display"))
             toolbox.append(btn)
 
         if has_permission("delete", table, record_id=record_id):
-            btn = A(ICON("delete"),
+            btn = A(I(" ", _class="icon icon-trash"),
                     _class="dl-item-delete",
                     _title=crud_string(tablename, "label_delete_button"))
             toolbox.append(btn)

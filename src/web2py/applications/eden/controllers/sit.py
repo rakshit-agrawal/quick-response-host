@@ -15,7 +15,8 @@ def index():
     """ Module's Home Page """
 
     return s3db.cms_index(module)
-    #return s3db.cms_index(module, alt_function="index_alt")
+
+    return s3db.cms_index(module, alt_function="index_alt")
 
 # -----------------------------------------------------------------------------
 def index_alt():
@@ -24,6 +25,6 @@ def index_alt():
     """
 
     # Just redirect to the list of Reports
-    s3_redirect_default(URL(f="report"))
+    redirect(URL(f="report"))
 
 # END =========================================================================

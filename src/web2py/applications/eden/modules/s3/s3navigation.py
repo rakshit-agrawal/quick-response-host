@@ -1504,16 +1504,8 @@ class S3ComponentTabs(object):
 
 # =============================================================================
 class S3ComponentTab(object):
-    """ Class representing a single Component Tab """
 
     def __init__(self, tab):
-        """
-            Constructor
-
-            @param tab: the component tab configuration as tuple
-                        (label, component_alias, {get_vars}), where the
-                        get_vars dict is optional.
-        """
 
         title, component = tab[:2]
         if component and component.find("/") > 0:
@@ -1545,11 +1537,6 @@ class S3ComponentTab(object):
 
     # -------------------------------------------------------------------------
     def active(self, r):
-        """
-            Check whether the this tab is active
-
-            @param r: the S3Request
-        """
 
         s3db = current.s3db
 
@@ -1567,15 +1554,12 @@ class S3ComponentTab(object):
         component = self.component
         if component:
             clist = get_components(resource.table, names=[component])
-            is_component = False
             if component in clist:
-                is_component = True
+                return True
             elif tablename:
                 clist = get_components(tablename, names=[component])
                 if component in clist:
-                    is_component = True
-            if is_component:
-                return self.authorised(clist[component])
+                    return True
             handler = get_method(resource.prefix,
                                  resource.name,
                                  method=component)
@@ -1590,36 +1574,7 @@ class S3ComponentTab(object):
         return True
 
     # -------------------------------------------------------------------------
-    def authorised(self, hook):
-        """
-            Check permissions for component tabs (in order to deactivate
-            tabs the user is not permitted to access)
-
-            @param hook: the component hook
-        """
-
-        READ = "read"
-        has_permission = current.auth.s3_has_permission
-
-        # Must have access to the link table (if any):
-        linktable = hook.linktable
-        if hook.linktable and not has_permission(READ, hook.linktable):
-            return False
-
-        # ...and to the component table itself:
-        if current.auth.s3_has_permission(READ, hook.tablename):
-            return True
-
-        return False
-
-    # -------------------------------------------------------------------------
     def vars_match(self, r):
-        """
-            Check whether the request GET vars match the GET vars in
-            the URL of this tab
-
-            @param r: the S3Request
-        """
 
         get_vars = r.get_vars
         if self.vars is None:

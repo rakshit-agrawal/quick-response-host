@@ -78,9 +78,8 @@ except ImportError:
     print >> sys.stderr, "ERROR: lxml module needed for XML handling"
     raise
 
-from s3datetime import S3DateTime
 from s3rest import S3Method
-from s3utils import s3_represent_value, s3_validate
+from s3utils import S3DateTime, s3_validate, s3_represent_value
 import s3codec
 
 try:

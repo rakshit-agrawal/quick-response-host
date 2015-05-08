@@ -1826,6 +1826,7 @@ class S3SQLSubFormLayout(object):
 
             @param data: the input field data as Python object
             @param readonly: whether the form is read-only
+            @param attributes: HTML attributes for the header row
         """
 
         fields = data["fields"]
@@ -2665,9 +2666,6 @@ class S3SQLInlineComponent(S3SQLSubForm):
                         # Do not create a second record in this component
                         query = (resource._id == master_id) & \
                                 component.get_join()
-                        f = self._filterby_query()
-                        if f is not None:
-                            query &= f
                         DELETED = current.xml.DELETED
                         if DELETED in table.fields:
                             query &= table[DELETED] != True
@@ -2945,8 +2943,6 @@ class S3SQLInlineComponent(S3SQLSubForm):
         """
 
         filterby = self.options["filterby"]
-        if not filterby:
-            return
         if not isinstance(filterby, (list, tuple)):
             filterby = [filterby]
 

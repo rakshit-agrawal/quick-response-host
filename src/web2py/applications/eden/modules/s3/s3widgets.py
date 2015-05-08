@@ -76,13 +76,11 @@ __all__ = ("S3ACLWidget",
            "s3_comments_widget",
            "s3_richtext_widget",
            "search_ac",
-           "S3XMLContents",
            "ICON",
            )
 
 import datetime
 import os
-import re
 
 try:
     import json # try stdlib (Python 2.6)
@@ -110,7 +108,6 @@ from gluon.languages import lazyT
 from gluon.sqlhtml import *
 from gluon.storage import Storage
 
-from s3datetime import S3DateTime
 from s3utils import *
 from s3validators import *
 
@@ -632,16 +629,11 @@ class S3AddPersonWidget2(FormWidget):
     """
 
     def __init__(self,
-                 controller = None,
-                 father_name = False,
-                 grandfather_name = False,
+                 controller = None
                  ):
 
         # Controller to retrieve the person or hrm record
         self.controller = controller
-
-        self.father_name = father_name
-        self.grandfather_name = grandfather_name
 
     def __call__(self, field, value, **attributes):
 
@@ -745,9 +737,6 @@ class S3AddPersonWidget2(FormWidget):
             emailRequired = False
             occupation = None
 
-        father_name = dtable.father_name if self.father_name else None
-        grandfather_name = dtable.grandfather_name if self.grandfather_name else None
-
         if value:
             db = current.db
             fields = [ptable.first_name,
@@ -755,8 +744,6 @@ class S3AddPersonWidget2(FormWidget):
                       ptable.last_name,
                       ptable.pe_id,
                       ]
-            details = False
-
             if hrm:
                 query = (htable.id == value) & \
                         (htable.person_id == ptable.id)
@@ -768,47 +755,27 @@ class S3AddPersonWidget2(FormWidget):
                 fields.append(date_of_birth)
             if gender:
                 fields.append(gender)
-            if father_name:
-                fields.append(father_name)
-                details = True
-            if grandfather_name:
-                fields.append(grandfather_name)
-                details = True
             if occupation:
                 fields.append(occupation)
-                details = True
-
-            if details:
                 left = dtable.on(dtable.person_id == ptable.id)
             else:
                 left = None
-
             row = db(query).select(*fields,
                                    left=left,
                                    limitby=(0, 1)).first()
-
-            if details or hrm:
+            if hrm:
+                values["organisation_id"] = row["hrm_human_resource.organisation_id"]
+            if occupation:
+                values["occupation"] = row["pr_person_details.occupation"]
+            if hrm or occupation:
                 person = row["pr_person"]
-                if details:
-                    person_details = row["pr_person_details"]
-                if hrm:
-                    human_resource = row["hrm_human_resource"]
             else:
                 person = row
-            if hrm:
-                values["organisation_id"] = human_resource.organisation_id
-            if occupation:
-                values["occupation"] = person_details.occupation
-            if father_name:
-                values["father_name"] = person_details.father_name
-            if grandfather_name:
-                values["grandfather_name"] = person_details.grandfather_name
             values["full_name"] = s3_fullname(person)
             if date_of_birth:
                 values["date_of_birth"] = person.date_of_birth
             if gender:
                 values["gender"] = person.gender
-
             # Contacts as separate query as we can't easily limitby
             ctable = s3db.pr_contact
             if req_home_phone:
@@ -925,10 +892,7 @@ class S3AddPersonWidget2(FormWidget):
                      OptionsWidget.widget(gender, values.get("gender", None),
                                           _id = "%s_gender" % fieldname),
                      False))
-        if father_name:
-            fappend(("father_name", father_name.label, INPUT(), False))
-        if grandfather_name:
-            fappend(("grandfather_name", grandfather_name.label, INPUT(), False))
+
         if occupation:
             fappend(("occupation", occupation.label, INPUT(), False))
 
@@ -1017,14 +981,6 @@ i18n.dupes_found="%s"''' % (i18n,
                             T("No"),
                             T("_NUM_ duplicates found"),
                             )
-            if father_name or grandfather_name:
-                i18n = \
-'''%s
-i18n.father_name_label="%s:"
-i18n.grandfather_name_label="%s:"''' % (i18n,
-                                        father_name.label,
-                                        grandfather_name.label,
-                                        )
             s3.js_global.append(i18n)
         if lookup_duplicates:
             script = '''S3.addPersonWidget('%s',1)''' % fieldname
@@ -1285,7 +1241,7 @@ class S3ColorPickerWidget(FormWidget):
 # =============================================================================
 class S3DateWidget(FormWidget):
     """
-        Standard Date widget
+        Standard Date widget, but with a modified yearRange to support Birth dates
     """
 
     def __init__(self,
@@ -1304,7 +1260,7 @@ class S3DateWidget(FormWidget):
             @param past: how many months into the past the date can be set to
             @param future: how many months into the future the date can be set to
             @param start_field: "selector" for start date field
-            @param default_interval: x months from start date
+            @paran default_interval: x months from start date
             @param default_explicit: bool for explicit default
         """
 
@@ -1662,17 +1618,10 @@ class S3DateTimeWidget(FormWidget):
 
         separator = settings.get_L10n_datetime_separator()
 
-        # Year range
-        pyears, fyears = 10, 10
-        if "min" in opts or "past" in opts:
-            pyears = abs(earliest.year - now.year)
-        if "max" in opts or "future" in opts:
-            fyears = abs(latest.year - now.year)
-        year_range = "%s:%s" % (opts.get("min_year", "-%s" % pyears),
-                                opts.get("max_year", "+%s" % fyears))
-
         # Other options
         firstDOW = settings.get_L10n_firstDOW()
+        year_range = "%s:%s" % (opts.get("min_year", "-10"),
+                                opts.get("max_year", "+10"))
 
         # Boolean options
         getopt = lambda opt, default: opts.get(opt, default) and "true" or "false"
@@ -4320,9 +4269,7 @@ class S3LocationSelector(S3Selector):
                  labels = True,
                  placeholders = False,
                  error_message = None,
-                 represent = None,
-                 prevent_duplicate_addresses = False,
-                 ):
+                 represent = None):
         """
             Constructor
 
@@ -4354,20 +4301,19 @@ class S3LocationSelector(S3Selector):
             @param placeholders: show placeholder text in inputs
             @param error_message: default error message for server-side validation
             @param represent: an S3Represent instance that can represent non-DB rows
-            @param prevent_duplicate_addresses: do a check for duplicate addresses & prevent
-                                                creation of record if a dupe is found
         """
 
         self._initlx = True
         self._levels = levels
         self._required_levels = required_levels
+
         self._load_levels = None
 
         self.hide_lx = hide_lx
         self.reverse_lx = reverse_lx
+
         self.show_address = show_address
         self.show_postcode = show_postcode
-        self.prevent_duplicate_addresses = prevent_duplicate_addresses
 
         if show_latlon is None:
             show_latlon = current.deployment_settings.get_gis_latlon_selector()
@@ -4748,17 +4694,11 @@ class S3LocationSelector(S3Selector):
         # Real input
         classes = ["location-selector"]
         if fieldname.startswith("sub_"):
-            is_inline = True
             classes.append("inline-locationselector-widget")
-        else:
-            is_inline = False
         real_input = self.inputfield(field, values, classes, **attributes)
 
         # The overall layout of the components
-        visible_components = self._layout(components,
-                                          map_icon=map_icon,
-                                          inline=is_inline,
-                                          )
+        visible_components = self._layout(components, map_icon=map_icon)
 
         return TAG[""](DIV(_class="throbber"),
                        real_input,
@@ -4781,7 +4721,6 @@ class S3LocationSelector(S3Selector):
             @ToDo: Country-specific Translations of Labels
         """
 
-        T = current.T
         table = current.s3db.gis_hierarchy
 
         fields = [table[level] for level in levels if level != "L0"]
@@ -4817,14 +4756,14 @@ class S3LocationSelector(S3Selector):
                     for level in levels:
                         if level == "L0":
                             continue
-                        labels[level] = d[int(level[1:])] = s3_unicode(T(row[level]))
+                        labels[level] = d[int(level[1:])] = row[level]
         else:
             row = rows.first()
             d = compact["d"] = {}
             for level in levels:
                 if level == "L0":
                     continue
-                d[int(level[1:])] = s3_unicode(T(row[level]))
+                d[int(level[1:])] = row[level]
 
         return labels, compact
 
@@ -5067,8 +5006,7 @@ class S3LocationSelector(S3Selector):
     def _layout(self,
                 components,
                 map_icon=None,
-                formstyle=None,
-                inline=False):
+                formstyle=None):
         """
             Overall layout for visible components
 
@@ -5087,14 +5025,12 @@ class S3LocationSelector(S3Selector):
             # Formstyle with separate row for label
             # (e.g. old default Eden formstyle)
             tuple_rows = True
-            table_style = inline and row[0].tag == "tr"
         else:
             # Formstyle with just a single row
             # (e.g. Bootstrap, Foundation or DRRPP)
             tuple_rows = False
-            table_style = False
 
-        selectors = DIV() if not table_style else TABLE()
+        selectors = DIV()
         for name in ("L0", "L1", "L2", "L3", "L4", "L5"):
             if name in components:
                 label, widget, input_id, hidden = components[name]
@@ -5110,7 +5046,7 @@ class S3LocationSelector(S3Selector):
                 else:
                     selectors.append(formrow)
 
-        inputs = TAG[""]() if not table_style else TABLE()
+        inputs = TAG[""]()
         for name in ("address", "postcode", "lat", "lon", "latlon_toggle"):
             if name in components:
                 label, widget, input_id, hidden = components[name]
@@ -5925,17 +5861,6 @@ i18n.location_not_found="%s"''' % (T("Address Mapped"),
                 if not current.auth.s3_has_permission("create", table):
                     return (values, current.auth.messages.access_denied)
 
-                # Check for duplicate address
-                if self.prevent_duplicate_addresses:
-                    query = (table.addr_street == address) & \
-                            (table.parent == parent) & \
-                            (table.deleted != True)
-                    duplicate = current.db(query).select(table.id,
-                                                         limitby=(0, 1)
-                                                         ).first()
-                    if duplicate:
-                        return (values, current.T("Duplicate Address"))
-
                 # Schedule for onvalidation
                 feature = Storage(addr_street=address,
                                   addr_postcode=postcode,
@@ -5979,15 +5904,12 @@ i18n.location_not_found="%s"''' % (T("Address Mapped"),
 
                 level = location.level
                 if level:
-                    # Accept all levels above and including the lowest selectable level
+                    # Which levels of Hierarchy are we using?
                     levels = self.levels
-                    for i in xrange(5,-1,-1):
-                        if "L%s" % i in levels:
-                            accepted_levels = set("L%s" % l for l in xrange(i,-1,-1))
-                            break
-                    if level not in accepted_levels:
+                    if level not in levels:
                         return (values, msg or \
                                         current.T("Location is of incorrect level!"))
+
             # Do not update (indicate by specific = None)
             values["specific"] = None
 
@@ -6007,11 +5929,6 @@ i18n.location_not_found="%s"''' % (T("Address Mapped"),
                 errors = form.errors
                 error = "\n".join(errors[fn] for fn in errors)
                 return (values, error)
-            elif feature:
-                # Required because gis_location_onvalidation updates form
-                # vars, and without these updates, wkt would get lost in
-                # update_location_tree :/
-                values.update(feature)
 
         # Success
         return (values, None)
@@ -6057,7 +5974,6 @@ i18n.location_not_found="%s"''' % (T("Address Mapped"),
         address = values.get("address")
         postcode = values.get("postcode")
         parent = values.get("parent")
-        gis_feature_type = values.get("gis_feature_type")
 
         if location_id == 0:
             # Create new location
@@ -6074,8 +5990,6 @@ i18n.location_not_found="%s"''' % (T("Address Mapped"),
                               addr_postcode=postcode,
                               parent=parent,
                               )
-            if gis_feature_type:
-                feature.gis_feature_type = gis_feature_type
             location_id = table.insert(**feature)
             feature.id = location_id
             current.gis.update_location_tree(feature)
@@ -6096,8 +6010,6 @@ i18n.location_not_found="%s"''' % (T("Address Mapped"),
                     feature.wkt = wkt
                     feature.inherited = False
 
-                if gis_feature_type:
-                    feature.gis_feature_type = gis_feature_type
                 db(table.id == location_id).update(**feature)
                 feature.id = location_id
                 current.gis.update_location_tree(feature)
@@ -6354,11 +6266,8 @@ class S3HierarchyWidget(FormWidget):
                  represent = None,
                  multiple = True,
                  leafonly = True,
-                 cascade = False,
-                 bulk_select = False,
                  filter = None,
                  columns = None,
-                 none = None,
                  ):
         """
             Constructor
@@ -6368,34 +6277,18 @@ class S3HierarchyWidget(FormWidget):
             @param represent: alternative representation method (falls back
                               to the field's represent-method)
             @param multiple: allow selection of multiple options
-            @param leafonly: True = only leaf nodes can be selected (with
-                             multiple=True: selection of a parent node will
-                             automatically select all leaf nodes of that
-                             branch)
-                             False = any nodes can be selected independently
-            @param cascade: automatic selection of children when selecting
-                            a parent node (if leafonly=False, otherwise
-                            this is the standard behavior!), requires
-                            multiple=True
-            @param bulk_select: provide option to select/deselect all nodes
+            @param leafonly: True = only leaf nodes can be selected
+                             False = any nodes to be selected independently
             @param filter: filter query for the lookup table
             @param columns: set the columns width class for Foundation forms
-            @param none: label for an option that delivers "None" as value
-                         (useful for HierarchyFilters with explicit none-selection)
         """
 
         self.lookup = lookup
         self.represent = represent
         self.filter = filter
-
         self.multiple = multiple
         self.leafonly = leafonly
-        self.cascade = cascade
-
         self.columns = columns
-        self.bulk_select = bulk_select
-
-        self.none = none
 
     # -------------------------------------------------------------------------
     def __call__(self, field, value, **attr):
@@ -6450,38 +6343,13 @@ class S3HierarchyWidget(FormWidget):
             attr["s3cols"] = self.columns
 
         # Generate the widget
-        settings = current.deployment_settings
-        cascade_option_in_tree = settings.get_ui_hierarchy_cascade_option_in_tree()
-
-        if self.multiple and self.bulk_select and \
-           not cascade_option_in_tree:
-            # Render bulk-select options as separate header
-            header = DIV(SPAN(A("Select All",
-                                _class="s3-hierarchy-select-all",
-                                ),
-                              " | ",
-                              A("Deselect All",
-                                _class="s3-hierarchy-deselect-all",
-                                ),
-                              _class="s3-hierarchy-bulkselect",
-                              ),
-                         _class="s3-hierarchy-header",
-                         )
-        else:
-            header = ""
         widget = DIV(INPUT(_type = "hidden",
                            _multiple = "multiple",
                            _name = name,
                            _class = "s3-hierarchy-input",
                            requires = self.parse),
-                     DIV(header,
-                         DIV(h.html("%s-tree" % widget_id,
-                                    none=self.none,
-                                    ),
-                             _class = "s3-hierarchy-tree",
-                             ),
-                         _class = "s3-hierarchy-wrapper",
-                         ),
+                     DIV(h.html("%s-tree" % widget_id),
+                         _class = "s3-hierarchy-tree"),
                      **attr)
         widget.add_class("s3-hierarchy-widget")
 
@@ -6501,7 +6369,7 @@ class S3HierarchyWidget(FormWidget):
                 append(v)
 
         # Custom theme
-        theme = settings.get_ui_hierarchy_theme()
+        theme = current.deployment_settings.get_ui_hierarchy_theme()
 
         if s3.debug:
             script = "%s/jstree.js" % script_dir
@@ -6527,28 +6395,18 @@ class S3HierarchyWidget(FormWidget):
                        "selectedText": str(T("# selected")),
                        "noneSelectedText": str(T("Select")),
                        "noOptionsText": str(T("No options available")),
-                       "selectAllText": str(T("Select All")),
-                       "deselectAllText": str(T("Deselect All")),
                        }
-
         # Only include non-default options
         if not self.multiple:
             widget_opts["multiple"] = False
         if not leafonly:
             widget_opts["leafonly"] = False
-        if self.cascade:
-            widget_opts["cascade"] = True
-        if self.bulk_select:
-            widget_opts["bulkSelect"] = True
-        if not cascade_option_in_tree:
-            widget_opts["cascadeOptionInTree"] = False
         icons = theme.get("icons", False)
         if icons:
             widget_opts["icons"] = icons
         stripes = theme.get("stripes", True)
         if not stripes:
             widget_opts["stripes"] = stripes
-
 
         script = '''$('#%(widget_id)s').hierarchicalopts(%(widget_opts)s)''' % \
                  {"widget_id": widget_id,
@@ -7690,10 +7548,9 @@ def search_ac(r, **attr):
         MAX_SEARCH_RESULTS = current.deployment_settings.get_search_max_results()
         if (not limit or limit > MAX_SEARCH_RESULTS) and \
            resource.count() > MAX_SEARCH_RESULTS:
-            output = [
-                dict(label=str(current.T("There are more than %(max)s results, please input more characters.") % \
-                    dict(max=MAX_SEARCH_RESULTS)))
-                ]
+            output = json.dumps([
+                dict(label=str(current.T("There are more than %(max)s results, please input more characters.") % dict(max=MAX_SEARCH_RESULTS)))
+                ], separators=SEPARATORS)
 
     if output is None:
         rows = resource.select(fields,
@@ -7711,70 +7568,6 @@ def search_ac(r, **attr):
 
     current.response.headers["Content-Type"] = "application/json"
     return json.dumps(output, separators=SEPARATORS)
-
-# =============================================================================
-class S3XMLContents(object):
-    """
-        Renderer for db-stored XML contents (e.g. CMS)
-
-        Replaces {{page}} expressions inside the contents with local URLs.
-
-        {{page}}                 - gives the URL of the current page
-        {{name:example}}         - gives the URL of the current page with
-                                   a query ?name=example (can add any number
-                                   of query variables)
-        {{c:org,f:organisation}} - c and f tokens override controller and
-                                   function of the current page, in this
-                                   example like /org/organisation
-
-        @note: does not check permissions for the result URLs
-    """
-
-    def __init__(self, contents):
-        """
-            Constructor
-
-            @param contents: the contents (string)
-        """
-
-        self.contents = contents
-
-    # -------------------------------------------------------------------------
-    def link(self, match):
-        """
-            Replace {{}} expressions with local URLs, with the ability to
-            override controller, function and URL query variables.Called
-            from re.sub.
-
-            @param match: the re match object
-        """
-
-        # Parse the expression
-        parameters = {}
-        tokens = match.group(1).split(",")
-        for token in tokens:
-            if not token:
-                continue
-            elif ":" in token:
-                key, value = token.split(":")
-            else:
-                key, value = token, None
-            if not value:
-                continue
-            parameters[key.strip()] = value.strip()
-
-        # Construct the URL
-        request = current.request
-        c = parameters.pop("c", request.controller)
-        f = parameters.pop("f", request.function)
-
-        return URL(c=c, f=f, vars=parameters, host=True)
-
-    # -------------------------------------------------------------------------
-    def xml(self):
-        """ Render the output """
-
-        return re.sub(r"\{\{(.+?)\}\}", self.link, self.contents)
 
 # =============================================================================
 class ICON(I):
@@ -7811,7 +7604,6 @@ class ICON(I):
         "font-awesome": {
             "_base": "icon",
             "active": "icon-check",
-            "activity": "icon-tag",
             "add": "icon-plus",
             "arrow-down": "icon-arrow-down",
             "attachment": "icon-paper-clip",
@@ -7823,31 +7615,23 @@ class ICON(I):
             "calendar": "icon-calendar",
             "certificate": "icon-certificate",
             "comment-alt": "icon-comment-alt",
-            "commit": "icon-truck",
             "delete": "icon-trash",
-            "deploy": "icon-plus",
-            "deployed": "icon-ok",
             "down": "icon-caret-down",
             "edit": "icon-edit",
             "exclamation": "icon-exclamation",
             "facebook": "icon-facebook",
-            "facility": "icon-home",
             "file": "icon-file",
             "file-alt": "icon-file-alt",
             "folder-open-alt": "icon-folder-open-alt",
             "fullscreen": "icon-fullscreen",
             "globe": "icon-globe",
-            "group": "icon-group",
             "home": "icon-home",
             "inactive": "icon-check-empty",
             "link": "icon-external-link",
             "list": "icon-list",
-            "location": "icon-globe",
             "mail": "icon-envelope-alt",
             "map-marker": "icon-map-marker",
             "offer": "icon-truck",
-            "organisation": "icon-sitemap",
-            "org-network": "icon-umbrella",
             "other": "icon-circle",
             "paper-clip": "icon-paper-clip",
             "phone": "icon-phone",
@@ -7856,10 +7640,8 @@ class ICON(I):
             "radio": "icon-microphone",
             "remove": "icon-remove",
             "request": "icon-flag",
-            "responsibility": "icon-briefcase",
             "rss": "icon-rss",
-            "sent": "icon-ok",
-            "site": "icon-home",
+            "sitemap": "icon-sitemap",
             "skype": "icon-skype",
             "star": "icon-star",
             "table": "icon-table",
@@ -7867,12 +7649,12 @@ class ICON(I):
             "tags": "icon-tags",
             "tasks": "icon-tasks",
             "time": "icon-time",
+            "trash": "icon-trash",
             "truck": "icon-truck",
             "twitter": "icon-twitter",
-            "unsent": "icon-remove",
             "up": "icon-caret-up",
-            "upload": "icon-upload-alt",
             "user": "icon-user",
+            "wrench": "icon-wrench",
             "zoomin": "icon-zoomin",
             "zoomout": "icon-zoomout",
         },
@@ -7880,7 +7662,6 @@ class ICON(I):
         #"font-awesome4": {
             #"_base": "fa",
             #"active": "fa-check",
-            #"activity": "fa-tag",
             #"add": "fa-plus",
             #"arrow-down": "fa-arrow-down",
             #"attachment": "fa-paper-clip",
@@ -7892,31 +7673,23 @@ class ICON(I):
             #"calendar": "fa-calendar",
             #"certificate": "fa-certificate",
             #"comment-alt": "fa-comment-o",
-            #"commit": "fa-truck",
             #"delete": "fa-trash",
-            #"deploy": "fa-plus",
-            #"deployed": "fa-check",
             #"down": "fa-caret-down",
             #"edit": "fa-edit",
             #"exclamation": "fa-exclamation",
             #"facebook": "fa-facebook",
-            #"facility": "fa-home",
             #"file": "fa-file",
             #"file-alt": "fa-file-alt",
             #"folder-open-alt": "fa-folder-open-o",
             #"fullscreen": "fa-fullscreen",
             #"globe": "fa-globe",
-            #"group": "fa-group",
             #"home": "fa-home",
             #"inactive": "fa-check-empty",
             #"link": "fa-external-link",
             #"list": "fa-list",
-            #"location": "fa-globe",
             #"mail": "fa-envelope-o",
             #"map-marker": "fa-map-marker",
             #"offer": "fa-truck",
-            #"organisation": "fa-institution",
-            #"org-network": "fa-umbrella",
             #"other": "fa-circle",
             #"paper-clip": "fa-paper-clip",
             #"phone": "fa-phone",
@@ -7925,10 +7698,8 @@ class ICON(I):
             #"radio": "fa-microphone",
             #"remove": "fa-remove",
             #"request": "fa-flag",
-            #"responsibility": "fa-briefcase",
             #"rss": "fa-rss",
-            #"sent": "fa-check",
-            #"site": "fa-home",
+            #"sitemap": "fa-sitemap",
             #"skype": "fa-skype",
             #"star": "fa-star",
             #"table": "fa-table",
@@ -7936,18 +7707,17 @@ class ICON(I):
             #"tags": "fa-tags",
             #"tasks": "fa-tasks",
             #"time": "fa-time",
+            #"trash": "fa-trash",
             #"truck": "fa-truck",
             #"twitter": "fa-twitter",
-            #"unsent": "fa-times",
             #"up": "fa-caret-up",
-            #"upload": "fa-upload",
             #"user": "fa-user",
+            #"wrench": "fa-wrench",
             #"zoomin": "fa-zoomin",
             #"zoomout": "fa-zoomout",
         #},
         "foundation": {
             "active": "fi-check",
-            "activity": "fi-price-tag",
             "add": "fi-plus",
             "arrow-down": "fi-arrow-down",
             "attachment": "fi-paperclip",
@@ -7958,30 +7728,22 @@ class ICON(I):
             "calendar": "fi-calendar",
             "certificate": "fi-burst",
             "comment-alt": "fi-comment",
-            "commit": "fi-check",
             "delete": "fi-trash",
-            "deploy": "fi-plus",
-            "deployed": "fi-check",
             "edit": "fi-page-edit",
             "exclamation": "fi-alert",
             "facebook": "fi-social-facebook",
-            "facility": "fi-home",
             "file": "fi-page-filled",
             "file-alt": "fi-page",
             "folder-open-alt": "fi-folder",
             "fullscreen": "fi-arrows-out",
             "globe": "fi-map",
-            "group": "fi-torsos-all",
             "home": "fi-home",
             "inactive": "fi-x",
             "link": "fi-web",
             "list": "fi-list",
-            "location": "fi-map",
             "mail": "fi-mail",
             "map-marker": "fi-marker",
             "offer": "fi-burst",
-            "organisation": "fi-torsos-all",
-            "org-network": "fi-asterisk",
             "other": "fi-asterisk",
             "paper-clip": "fi-paperclip",
             "phone": "fi-telephone",
@@ -7990,10 +7752,7 @@ class ICON(I):
             "radio": "fi-microphone",
             "remove": "fi-x",
             "request": "fi-flag",
-            "responsibility": "fi-sheriff-badge",
             "rss": "fi-rss",
-            "sent": "fi-check",
-            "site": "fi-home",
             "skype": "fi-social-skype",
             "star": "fi-star",
             "table": "fi-list-thumbnails",
@@ -8001,10 +7760,10 @@ class ICON(I):
             "tags": "fi-pricetag-multiple",
             "tasks": "fi-clipboard-notes",
             "time": "fi-clock",
+            "trash": "fi-trash",
             "twitter": "fi-social-twitter",
-            "unsent": "fi-x",
-            "upload": "fi-upload",
             "user": "fi-torso",
+            "wrench": "fi-wrench",
             "zoomin": "fi-zoom-in",
             "zoomout": "fi-zoom-out",
         },

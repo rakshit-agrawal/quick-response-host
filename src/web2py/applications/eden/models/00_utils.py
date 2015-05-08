@@ -5,15 +5,13 @@
 """
 
 # =============================================================================
-# Special local requests (e.g. from scheduler)
-#
 if request.is_local:
     # This is a request made from the local server
 
     f = get_vars.get("format", None)
     auth_token = get_vars.get("subscription", None)
     if auth_token and f == "msg":
-        # Subscription lookup request (see S3Notify.notify())
+        # Subscription lookup request
         rtable = s3db.pr_subscription_resource
         stable = s3db.pr_subscription
         utable = s3db.pr_person_user
@@ -41,11 +39,6 @@ auth.s3_set_roles()
 # Check access to this controller
 if not auth.permission.has_permission("read"):
     auth.permission.fail()
-
-# =============================================================================
-# Initialize Date/Time Settings
-#
-s3base.s3_get_utc_offset()
 
 # =============================================================================
 # Menus
@@ -98,6 +91,40 @@ menu["main"] = main
 # Override controller menus
 # @todo: replace by current.menu.override
 s3_menu_dict = {}
+
+# =============================================================================
+def s3_get_utc_offset():
+    """ Get the current UTC offset for the client """
+
+    offset = None
+
+    if auth.is_logged_in():
+        # 1st choice is the personal preference (useful for GETs if user wishes to see times in their local timezone)
+        offset = session.auth.user.utc_offset
+        if offset:
+            offset = offset.strip()
+
+    if not offset:
+        # 2nd choice is what the client provides in the hidden field (for form POSTs)
+        offset = request.post_vars.get("_utc_offset", None)
+        if offset:
+            offset = int(offset)
+            utcstr = offset < 0 and "UTC +" or "UTC -"
+            hours = abs(int(offset/60))
+            minutes = abs(int(offset % 60))
+            offset = "%s%02d%02d" % (utcstr, hours, minutes)
+            # Make this the preferred value during this session
+            if auth.is_logged_in():
+                session.auth.user.utc_offset = offset
+
+    if not offset:
+        # 3rd choice is the server default (what most clients should see the timezone as)
+        offset = deployment_settings.L10n.utc_offset
+
+    return offset
+
+# Store last value in session
+session.s3.utc_offset = s3_get_utc_offset()
 
 # -----------------------------------------------------------------------------
 def s3_rest_controller(prefix=None, resourcename=None, **attr):
@@ -188,7 +215,7 @@ def s3_rest_controller(prefix=None, resourcename=None, **attr):
     if method == "import" and r.representation == "pdf":
         from s3.s3pdf import S3PDF
         set_handler("import", S3PDF(),
-                    http = ("GET", "POST"),
+                    http = ["GET", "POST"],
                     representation="pdf")
 
     # Plugin OrgRoleManager when appropriate

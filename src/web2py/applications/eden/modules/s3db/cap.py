@@ -841,7 +841,6 @@ class S3CAPModel(S3Model):
                         widget = S3LocationSelector(points = False,
                                                     polygons = True,
                                                     show_map = True,
-                                                    catalog_layers = True,
                                                     show_address = False,
                                                     show_postcode = False,
                                                     ),

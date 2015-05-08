@@ -163,7 +163,7 @@
   border-left: 2px solid #ccc;
 }
 .pt-table-contents .pt-table .pt-cell-value {
-  display: inline;
+  float: left;
 }
 .pt-table-contents .pt-table .pt-cell-value li {
   font-size: 0.8rem;
@@ -180,8 +180,7 @@
   width: 16px;
   height: 16px;
   cursor: pointer;
-  display: inline-block;
-  vertical-align: text-top;
+  float: right;
   margin-left: 5px;
   background: url(../../img/silk/magnifier_zoom_in.png) no-repeat top right;
 }

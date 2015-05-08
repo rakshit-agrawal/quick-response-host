@@ -26,20 +26,14 @@ def index_alt():
     template = settings.get_template()
     if template == "SandyRelief":
         # Just redirect to the Facilities
-        s3_redirect_default(URL(f="facility"))
+        redirect(URL(f="facility"))
     else:
         # Just redirect to the list of Organisations
-        s3_redirect_default(URL(f="organisation"))
+        redirect(URL(f="organisation"))
 
 # -----------------------------------------------------------------------------
 def group():
     """ RESTful CRUD controller """
-
-    # Use hrm/group controller for teams rather than pr/group
-    s3db.configure("pr_group",
-                   linkto = lambda record_id: \
-                            URL(c="hrm", f="group", args=[record_id]),
-                   )
 
     return s3_rest_controller(rheader = s3db.org_rheader)
 

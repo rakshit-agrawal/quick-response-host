@@ -67,7 +67,6 @@ __all__ = ("S3PersonEntity",
            "pr_add_to_role",
            "pr_remove_from_role",
            # Hierarchy Lookup
-           "pr_instance_type",
            "pr_realm",
            "pr_realm_users",
            "pr_get_role_paths",
@@ -177,8 +176,6 @@ class S3PersonEntity(S3Model):
                            org_office = T("Office"),
                            pr_person = T("Person"),
                            pr_group = T("Group"),
-                           po_area = T("Recovery Outreach Area"),
-                           po_household = T("Household"),
                            )
 
         pr_pentity_represent = pr_PersonEntityRepresent()
@@ -741,21 +738,12 @@ class S3PersonModel(S3Model):
                           2: T("female"),
                           3: T("male"),
                           }
-        if not settings.get_pr_hide_third_gender():
-            # Add the third gender option ("other" or "indeterminate",
-            # meaning neither female nor male, officially recognized
-            # in various countries)
-            pr_gender_opts[4] = T("other")
         pr_gender = S3ReusableField("gender", "integer",
                                     default = 1,
                                     label = T("Sex"),
-                                    represent = S3Represent(options=pr_gender_opts,
-                                                            default=current.messages["NONE"],
-                                                            ),
-                                    requires = IS_PERSON_GENDER(pr_gender_opts,
-                                                                sort=True,
-                                                                zero=None,
-                                                                ),
+                                    represent = lambda opt: \
+                                                pr_gender_opts.get(opt, UNKNOWN_OPT),
+                                    requires = IS_IN_SET(pr_gender_opts, zero=None),
                                     )
 
         pr_impact_tags = {1: T("injured"),
@@ -897,7 +885,6 @@ class S3PersonModel(S3Model):
                                     "person_details.religion",
                                     "person_details.mother_name",
                                     "person_details.father_name",
-                                    "person_details.grandfather_name",
                                     "person_details.occupation",
                                     "person_details.company",
                                     "person_details.affiliations",
@@ -1025,8 +1012,6 @@ class S3PersonModel(S3Model):
                        hrm_competency = "person_id",
                        hrm_credential = "person_id",
                        hrm_training = "person_id",
-                       # Facilitated Trainings (Instructor)
-                       hrm_training_event = "person_id",
                        # Experience
                        hrm_experience = "person_id",
                        hrm_programme_hours = {"name": "hours",
@@ -1395,10 +1380,9 @@ class S3PersonModel(S3Model):
         limit = int(_vars.limit or 0)
         MAX_SEARCH_RESULTS = settings.get_search_max_results()
         if (not limit or limit > MAX_SEARCH_RESULTS) and resource.count() > MAX_SEARCH_RESULTS:
-            output = [
-                dict(label=str(current.T("There are more than %(max)s results, please input more characters.") % \
-                    dict(max=MAX_SEARCH_RESULTS)))
-                ]
+            output = json.dumps([
+                dict(label=str(current.T("There are more than %(max)s results, please input more characters.") % dict(max=MAX_SEARCH_RESULTS)))
+                ], separators=SEPARATORS)
         else:
             fields = ["id",
                       "first_name",
@@ -1598,8 +1582,6 @@ class S3PersonModel(S3Model):
             else:
                 dob = None
         gender = post_vars.get("sex", None)
-        father_name = post_vars.get("father_name", None)
-        grandfather_name = post_vars.get("grandfather_name", None)
         occupation = post_vars.get("occupation", None)
         mobile_phone = post_vars.get("mphone", None)
         home_phone = post_vars.get("hphone", None)
@@ -1650,8 +1632,6 @@ class S3PersonModel(S3Model):
                   "last_name",
                   "date_of_birth",
                   "gender",
-                  "person_details.father_name",
-                  "person_details.grandfather_name",
                   "person_details.occupation",
                   "image.image",
                   ]
@@ -1766,37 +1746,31 @@ class S3PersonModel(S3Model):
             item = {"id"     : row["pr_person.id"],
                     "name"   : name,
                     }
-            date_of_birth = row.get("pr_person.date_of_birth")
+            date_of_birth = row.get("pr_person.date_of_birth", None)
             if date_of_birth:
                 item["dob"] = date_of_birth.isoformat()
-            gender = row.get("pr_person.gender")
-            if gender in (2, 3, 4):
+            gender = row.get("pr_person.gender", None)
+            if gender in (2, 3):
                 # 1 = unknown
                 item["sex"] = gender
-            father_name = row.get("pr_person_details.father_name")
-            if father_name:
-                item["father_name"] = father_name
-            grandfather_name = row.get("pr_person_details.grandfather_name")
-            if grandfather_name:
-                item["grandfather_name"] = grandfather_name
-            occupation = row.get("pr_person_details.occupation")
+            occupation = row.get("pr_person_details.occupation", None)
             if occupation:
                 item["job"] = occupation
-            email = row.get("pr_contact.email")
+            email = row.get("pr_contact.email", None)
             if email:
                 item["email"] = email
-            phone = row.get("pr_contact.phone")
+            phone = row.get("pr_contact.phone", None)
             if phone:
                 item["mphone"] = phone
-            image = row.get("pr_image.image")
+            image = row.get("pr_image.image", None)
             if image:
                 item["image"] = image
             if show_hr:
-                job_title = row.get("hrm_job_title.name")
+                job_title = row.get("hrm_job_title.name", None)
                 if job_title:
                     item["job"] = job_title
                 if show_orgs:
-                     org = row.get("org_organisation.name")
+                     org = row.get("org_organisation.name", None)
                      if org:
                         item["org"] = org
             iappend(item)
@@ -1923,7 +1897,7 @@ class S3GroupModel(S3Model):
             title = T("Create Group")
             tooltip = T("Create a new Group")
 
-        represent = pr_GroupRepresent()
+        represent = S3Represent(lookup=tablename)
         group_id = S3ReusableField("group_id", "reference %s" % tablename,
                                    sortby = "name",
                                    comment = S3AddResourceLink(#c="pr",
@@ -2593,14 +2567,13 @@ class S3PersonImageModel(S3Model):
                                               _title="%s|%s" % (T("URL"),
                                                                 T("The URL of the image file. If you don't upload an image file, then you must specify its location here.")))),
                           Field("type", "integer",
+                                requires = IS_IN_SET(pr_image_type_opts,
+                                                     zero=None),
                                 default = 1,
                                 label = T("Image Type"),
                                 represent = lambda opt: \
                                             pr_image_type_opts.get(opt,
-                                               current.messages.UNKNOWN_OPT),
-                                requires = IS_IN_SET(pr_image_type_opts,
-                                                     zero=None),
-                                ),
+                                               current.messages.UNKNOWN_OPT)),
                           s3_comments("description",
                                       label=T("Description"),
                                       comment = DIV(_class="tooltip",
@@ -3141,23 +3114,22 @@ class S3PersonDetailsModel(S3Model):
         UNKNOWN_OPT = messages.UNKNOWN_OPT
 
         pr_marital_status_opts = {
-            1: T("unknown"),
-            2: T("single"),
-            3: T("married"),
-            4: T("separated"),
-            5: T("divorced"),
-            6: T("widowed"),
-            9: T("other")
+            1:T("unknown"),
+            2:T("single"),
+            3:T("married"),
+            4:T("separated"),
+            5:T("divorced"),
+            6:T("widowed"),
+            9:T("other")
         }
 
         pr_marital_status = S3ReusableField("marital_status", "integer",
+                                            requires = IS_IN_SET(pr_marital_status_opts,
+                                                                 zero=None),
                                             default = 1,
                                             label = T("Marital Status"),
                                             represent = lambda opt: \
-                                                pr_marital_status_opts.get(opt, UNKNOWN_OPT),
-                                            requires = IS_IN_SET(pr_marital_status_opts,
-                                                                 zero=None),
-                                            )
+                                                pr_marital_status_opts.get(opt, UNKNOWN_OPT))
 
         pr_religion_opts = current.deployment_settings.get_L10n_religions()
 
@@ -3193,9 +3165,6 @@ class S3PersonDetailsModel(S3Model):
                                 writable = False,
                                 ),
                           pr_marital_status(),
-                          Field("number_children", "integer",
-                                label = T("Number of Children"),
-                                ),
                           Field("religion", length=128,
                                 label = T("Religion"),
                                 represent = lambda opt: \
@@ -3214,11 +3183,6 @@ class S3PersonDetailsModel(S3Model):
                           Field("mother_name",
                                 label = T("Name of Mother"),
                                 ),
-                          Field("grandfather_name",
-                                label = T("Name of Grandfather"),
-                                readable = False,
-                                writable = False,
-                                ),
                           Field("occupation", length=128, # Mayon Compatibility
                                 label = T("Profession"),
                                 ),
@@ -3229,14 +3193,6 @@ class S3PersonDetailsModel(S3Model):
                           Field("affiliations",
                                 label = T("Affiliations"),
                                 # @ToDo: Autofill from hrm_human_resource Volunteer Organisation
-                                ),
-                          Field("criminal_record", "boolean",
-                                label = T("Criminal Record"),
-                                represent = s3_yes_no_represent,
-                                ),
-                          Field("military_service", "boolean",
-                                label = T("Military Service"),
-                                represent = s3_yes_no_represent,
                                 ),
                           *s3_meta_fields())
 
@@ -4661,7 +4617,7 @@ class pr_PersonEntityRepresent(S3Represent):
         if self.show_type:
             etable = current.s3db.pr_pentity
             instance_type_nice = etable.instance_type.represent(instance_type)
-            instance_type_nice = " (%s)" % s3_unicode(instance_type_nice)
+            instance_type_nice = " (%s)" % instance_type_nice
         else:
             instance_type_nice = ""
 
@@ -4676,7 +4632,7 @@ class pr_PersonEntityRepresent(S3Represent):
                                    instance_type_nice)
 
         elif "name" in item:
-            pe_str = "%s%s" % (s3_unicode(item["name"]),
+            pe_str = "%s%s" % (item["name"],
                                instance_type_nice)
         else:
             pe_str = "[%s]%s" % (label,
@@ -4738,99 +4694,6 @@ class pr_PersonRepresent(S3Represent):
                                                  multiple,
                                                  default,
                                                  none)
-
-# =============================================================================
-class pr_GroupRepresent(S3Represent):
-    """ Representation of person groups """
-
-    def __init__(self):
-        """ Constructor """
-
-        super(pr_GroupRepresent, self).__init__("pr_group",
-                                                fields = ["name"],
-                                                )
-
-        self.show_org_groups = current.deployment_settings \
-                                      .get_org_group_team_represent()
-        self.org_groups = {}
-
-    # -------------------------------------------------------------------------
-    def lookup_rows(self, key, values, fields=[]):
-        """
-            Custom rows lookup
-
-            @param key: the key Field
-            @param values: the values
-            @param fields: unused (retained for API compatibility)
-        """
-
-        db = current.db
-
-        table = self.table
-        count = len(values)
-        if count == 1:
-            query = (key == values[0])
-        else:
-            query = key.belongs(values)
-        rows = db(query).select(table.id,
-                                table.name,
-                                limitby=(0, count),
-                                )
-        self.queries += 1
-
-        if self.show_org_groups:
-            # Look up all org_groups linked to these groups (second query
-            # because it's a m2m link but the returned rows must not contain
-            # duplicates)
-            s3db = current.s3db
-            ltable = s3db.org_group_team
-            gtable = s3db.org_group
-
-            left = gtable.on(ltable.org_group_id == gtable.id)
-            group_id = ltable.group_id
-
-            if count == 1:
-                query = (group_id == values[0])
-            else:
-                query = group_id.belongs(values)
-            query &= (ltable.deleted != True)
-
-            org_group_name = gtable.name
-            links = db(query).select(group_id,
-                                     org_group_name,
-                                     left=left,
-                                     )
-            self.queries += 1
-
-            groups = self.org_groups
-            for link in links:
-                group = link[group_id]
-                name = link[org_group_name]
-                if name:
-                    if group not in groups:
-                        groups[group] = [name]
-                    else:
-                        groups[group].append(name)
-
-        return rows
-
-    # -------------------------------------------------------------------------
-    def represent_row(self, row):
-        """
-            Represent a row
-
-            @param row: the Row
-        """
-
-        representation = "%s" % row.name
-
-        if self.show_org_groups:
-            # Append the org_group names in parantheses
-            names = self.org_groups.get(row.id)
-            if names:
-                representation = "%s (%s)" % (representation, ", ".join(names))
-
-        return representation
 
 # =============================================================================
 def pr_person_phone_represent(id, show_link=True):
@@ -5139,9 +5002,7 @@ class pr_Contacts(S3Method):
         # Custom View
         response.view = "pr/contacts.html"
 
-        title = self.crud_string(r.tablename, "title_display")
-
-        return {"contents": contents, "title": title}
+        return {"contents": contents, "title": T("Contacts")}
 
     # -------------------------------------------------------------------------
     @staticmethod
@@ -5192,13 +5053,12 @@ class pr_Contacts(S3Method):
 
         # Retrieve the rows
         fields = ["id",
-                  "priority",
                   "contact_description",
                   "value",
                   "contact_method",
                   "comments",
                   ]
-        rows = resource.select(fields, orderby="pr_contact.priority").rows
+        rows = resource.select(fields).rows
 
         # Group by contact method and sort by priority
         from itertools import groupby
@@ -5226,7 +5086,6 @@ class pr_Contacts(S3Method):
         # Contact information by contact method
         opts = current.msg.CONTACT_OPTS
         action_buttons = self.action_buttons
-        inline_edit_hint = T("Click to edit")
         for method, contacts in groups:
 
             # Subtitle
@@ -5235,20 +5094,11 @@ class pr_Contacts(S3Method):
             # Individual Rows
             for contact in contacts:
 
-                priority = contact["pr_contact.priority"]
-                if priority:
-                    priority_title = "%s - %s" % (T("Priority"), inline_edit_hint)
-                    priority_field = SPAN(priority,
-                                          _class = "pr-contact-priority",
-                                          _title = priority_title,
-                                          )
-                else:
-                    priority_field = ""
-
                 contact_id = contact["pr_contact.id"]
                 value = contact["pr_contact.value"]
                 description = contact["pr_contact.contact_description"] or ""
 
+                inline_edit_hint = T("Click to edit")
                 title = SPAN(value,
                              _title = inline_edit_hint,
                              _class = "pr-contact-value",
@@ -5256,34 +5106,26 @@ class pr_Contacts(S3Method):
                 if description:
                     title = TAG[""](SPAN(description,
                                          _title = inline_edit_hint,
-                                         _class = "pr-contact-description",
-                                         ),
+                                         _class = "pr-contact-description"),
                                     ", ",
                                     title,
                                     )
-
                 comments = contact["pr_contact.comments"] or ""
 
                 actions = action_buttons(table, contact_id)
-                form.append(DIV(DIV(priority_field,
-                                    DIV(DIV(title,
-                                            _class="pr-contact-title",
-                                            ),
-                                        DIV(SPAN(comments,
-                                                 _title = inline_edit_hint,
-                                                 _class = "pr-contact-comments",
-                                                 ),
-                                            _class = "pr-contact-subtitle",
-                                            ),
-                                        _class = "pr-contact-details",
+                form.append(DIV(DIV(DIV(title,
+                                        _class="pr-contact-title",
+                                        ),
+                                    DIV(SPAN(comments,
+                                             _title = inline_edit_hint,
+                                             _class = "pr-contact-comments"),
+                                        _class = "pr-contact-subtitle",
                                         ),
                                     _class = "pr-contact-data medium-9 columns",
                                     ),
-
                                 actions,
                                 data = {
                                     "id": contact_id,
-                                    "priority": priority,
                                     "value": value,
                                     "description": description,
                                     "comments": comments,
@@ -5317,7 +5159,6 @@ class pr_Contacts(S3Method):
                               "relationship",
                               "address",
                               "phone",
-                              "comments",
                               )
                     if table[f].readable]
         fields.insert(0, "id")
@@ -5339,60 +5180,18 @@ class pr_Contacts(S3Method):
 
         # Individual rows
         readable_fields = fields[1:]
-        action_buttons = self.action_buttons
-        inline_edit_hint = T("Click to edit")
         for row in rows:
-            contact_id = row["pr_contact_emergency.id"]
-
-            # Render description and data
-            data = {"id": contact_id}
-            description = TAG[""](SPAN(row["pr_contact_emergency.name"],
-                                       _title = inline_edit_hint,
-                                       _class = "pr-emergency-name",
-                                       ),
-                                  )
-            append = description.append
-            for fieldname in ("relationship", "address", "phone"):
-                if fieldname in readable_fields:
-                    value = row["pr_contact_emergency.%s" % fieldname]
-                    if value:
-                        data[fieldname] = s3_unicode(value)
-                        editable = SPAN(value,
-                                        _title = inline_edit_hint,
-                                        _class = "pr-emergency-%s" % fieldname,
-                                        )
-                        if fieldname == "relationship":
-                            append(" (")
-                            append(editable)
-                            append(")")
-                        else:
-                            append(", ")
-                            append(editable)
-
-            # Render comments
-            if "comments" in readable_fields:
-                comments = row["pr_contact_emergency.comments"] or ""
-                if comments:
-                    data["comments"] = s3_unicode(comments)
-            else:
-                comments = ""
-
-            actions = action_buttons(table, contact_id)
-            form.append(DIV(DIV(DIV(description,
-                                    _class="pr-contact-title",
-                                    ),
-                                DIV(SPAN(comments,
-                                         _title = inline_edit_hint,
-                                         _class = "pr-emergency-comments"),
-                                    _class = "pr-contact-subtitle",
-                                    ),
-                                _class = "pr-emergency-data medium-9 columns",
+            data = (row["pr_contact_emergency.%s" % f] or ""
+                    for f in readable_fields)
+            record_id = row["pr_contact_emergency.id"]
+            form.append(DIV(DIV(", ".join(data),
+                                _class="pr-emergency-data medium-9 columns",
                                 ),
-                            actions,
-                            data = data,
+                            self.action_buttons(table, record_id),
+                            data = {"id": record_id,
+                                    },
                             _class="pr-emergency-contact row",
                             ))
-
         return form
 
 # =============================================================================
@@ -6321,22 +6120,6 @@ def pr_get_ancestors(pe_id):
     ancestors = S3MultiPath.all_nodes(paths)
 
     return ancestors
-
-# =============================================================================
-def pr_instance_type(pe_id):
-    """
-        Get the instance type for a PE
-
-        @param pe_id: the PE ID
-    """
-
-    if pe_id:
-        etable = current.s3db.pr_pentity
-        row = current.db(etable.pe_id == pe_id).select(etable.instance_type,
-                                                       limitby=(0, 1)).first()
-        if row:
-            return row.instance_type
-    return None
 
 # =============================================================================
 def pr_realm(entity):
@@ -7278,9 +7061,6 @@ class pr_PersonListLayout(S3DataListLayout):
                     icon = "female"
                 elif gender == 3:
                     icon = "male"
-                # @todo: support "other" gender
-                #elif gender == 4:
-                    #icon = ?
                 else:
                     return None # don't render if unknown
             else:

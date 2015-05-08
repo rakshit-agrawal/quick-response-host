@@ -53,7 +53,6 @@ from gluon import *
 from gluon.storage import Storage
 from gluon.tools import fetch
 
-from s3datetime import s3_decode_iso_datetime, s3_encode_iso_datetime, s3_utc
 from s3utils import s3_truncate, s3_unicode
 
 DEBUG = False
@@ -160,7 +159,7 @@ class S3Notifications(object):
         purl = list(urlparse.urlparse(lookup_url))
 
         # Subscription parameters
-        last_check_time = s3_encode_iso_datetime(r.last_check_time)
+        last_check_time = current.xml.encode_iso_datetime(r.last_check_time)
         query = {"subscription": auth_token, "format": "msg"}
         if "upd" in s.notify_on:
             query["~.modified_on__ge"] = last_check_time
@@ -318,7 +317,8 @@ class S3Notifications(object):
         else:
             resource_name = string.capwords(resource.name, "_")
 
-        last_check_time = s3_decode_iso_datetime(subscription["last_check_time"])
+        last_check_time = current.xml.decode_iso_datetime(
+                                subscription["last_check_time"])
 
         email_format = subscription["email_format"]
         if not email_format:
@@ -544,6 +544,7 @@ class S3Notifications(object):
 
         created_on_selector = resource.prefix_selector("created_on")
         created_on_colname = None
+        as_utc = current.xml.as_utc
         notify_on = meta_data["notify_on"]
         last_check_time = meta_data["last_check_time"]
         rows = data["rows"]
@@ -573,7 +574,7 @@ class S3Notifications(object):
                     except KeyError, AttributeError:
                         pass
                     else:
-                        if s3_utc(created_on) >= last_check_time:
+                        if as_utc(created_on) >= last_check_time:
                             append_record = new.append
                 tr = TR([TD(XML(row[colname])) for colname in colnames])
                 append_record(tr)
@@ -607,7 +608,7 @@ class S3Notifications(object):
                     except KeyError, AttributeError:
                         pass
                     else:
-                        if s3_utc(created_on) >= last_check_time:
+                        if as_utc(created_on) >= last_check_time:
                             append_record = new.append
 
                 record = []

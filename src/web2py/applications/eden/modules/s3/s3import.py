@@ -64,7 +64,6 @@ from gluon import *
 from gluon.storage import Storage, Messages
 from gluon.tools import callback, fetch
 
-from s3datetime import s3_utc
 from s3rest import S3Method
 from s3resource import S3Resource
 from s3utils import s3_mark_required, s3_has_foreign_key, s3_get_foreign_key, s3_unicode
@@ -935,14 +934,14 @@ class S3Importer(S3Method):
 
         # ---------------------------------------------------------------------
         # CSV
-        if fileFormat in ("csv", "comma-separated-values"):
+        if fileFormat == "csv" or fileFormat == "comma-separated-values":
 
             fmt = "csv"
             src = openFile
 
         # ---------------------------------------------------------------------
         # XLS
-        elif fileFormat in ("xls", "xlsx"):
+        elif fileFormat == "xls" or fileFormat == "xlsx":
 
             fmt = "xls"
             src = openFile
@@ -1362,12 +1361,9 @@ class S3Importer(S3Method):
             output.append(header)
         # Add components, if present
         components = element.findall("resource")
-        s3db = current.s3db
         for component in components:
             ctablename = component.get("name")
-            ctable = s3db.table(ctablename)
-            if not ctable:
-                continue
+            ctable = db[ctablename]
             self._add_item_details(component.findall("data"), ctable,
                                    details=rows, prefix=True)
         if rows:
@@ -2000,14 +1996,14 @@ class S3ImportItem(object):
         ERROR = xml.ATTRIBUTE["error"]
 
         METHOD = self.METHOD
-        DELETE = METHOD.DELETE
-        MERGE = METHOD.MERGE
+        DELETE = METHOD["DELETE"]
+        MERGE = METHOD["MERGE"]
 
         # Detect update
         self.deduplicate()
 
-        # Don't need to validate skipped or deleted records
-        if self.skip or self.method in (DELETE, MERGE):
+        # Don't need to validate deleted records
+        if self.method in (DELETE, MERGE):
             self.accepted = True if self.id else False
             return True
 
@@ -2157,7 +2153,7 @@ class S3ImportItem(object):
         VALIDATION_ERROR = current.ERROR.VALIDATION_ERROR
 
         # Make item mtime TZ-aware
-        self.mtime = s3_utc(self.mtime)
+        self.mtime = xml.as_utc(self.mtime)
 
         _debug("Committing item %s" % self)
 
@@ -2234,7 +2230,7 @@ class S3ImportItem(object):
         this_mci = 0
         if this:
             if hasattr(table, MTIME):
-                this_mtime = s3_utc(this[MTIME])
+                this_mtime = xml.as_utc(this[MTIME])
             if hasattr(table, MCI):
                 this_mci = this[MCI]
 
@@ -2243,7 +2239,7 @@ class S3ImportItem(object):
         this_modified = True
         self.modified = True
         self.conflict = False
-        last_sync = s3_utc(job.last_sync)
+        last_sync = xml.as_utc(job.last_sync)
         if last_sync:
             if this_mtime and this_mtime < last_sync:
                 this_modified = False
@@ -2300,7 +2296,7 @@ class S3ImportItem(object):
                     if f in this:
                         # Check if unchanged
                         if type(this[f]) is datetime:
-                            if s3_utc(data[f]) == s3_utc(this[f]):
+                            if xml.as_utc(data[f]) == xml.as_utc(this[f]):
                                 del data[f]
                                 continue
                         else:
@@ -4051,7 +4047,7 @@ class S3BulkImporter(object):
                 try:
                     record_id = record.id
                 except:
-                    current.log.error("Unable to get record %s of the resource %s to attach the image file to" % (row["id"], tablename))
+                    current.log.error("Unable to get record %s of the resource %s to attach the image file to" % (id, tablename))
                     continue
                 # Create and accept the form
                 form = SQLFORM(table, record, fields=["id", imagefield])

@@ -110,7 +110,6 @@ class S3MainMenuDefaultLayout(S3NavigationItem):
                         return LI(A(item.label,
                                     _href=item_url,
                                     _id=item.attr._id,
-                                    _target=item.attr._target,
                                     ),
                                   _class=_class,
                                   )
@@ -125,11 +124,7 @@ class S3MainMenuDefaultLayout(S3NavigationItem):
                                 return None
                         else:
                             label = item.label
-                        link = A(label,
-                                 _href=item.url(),
-                                 _id=item.attr._id,
-                                 _target=item.attr._target,
-                                 )
+                        link = A(label, _href=item.url(), _id=item.attr._id)
                         _class = " ".join(classes)
                         return LI(link, _class=_class)
             else:

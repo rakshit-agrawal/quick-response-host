@@ -160,48 +160,39 @@ def person():
         return True
     s3.prep = prep
 
-    # Address tab
-    if settings.get_pr_use_address():
-        address_tab = (T("Address"), "address")
-    else:
-        address_tab = None
+    # Tabs
+    tabs = [(T("Basic Details"), None),
+            (T("Address"), "address"),
+            #(T("Contacts"), "contact"),
+            ]
 
-    # Contacts Tabs
-    contacts_tabs = []
     set_method = s3db.set_method
-    setting = settings.get_pr_contacts_tabs()
-    if "all" in setting:
+    contacts_tabs = settings.get_pr_contacts_tabs()
+    if "all" in contacts_tabs:
         s3db.set_method(module, resourcename,
                         method = "contacts",
                         action = s3db.pr_Contacts)
-        contacts_tabs.append((T("Contacts"), "contacts"))
-    if "public" in setting:
+        tabs.append((T("Contacts"), "contacts"))
+    if "public" in contacts_tabs:
         s3db.set_method(module, resourcename,
                         method = "public_contacts",
                         action = s3db.pr_Contacts)
-        contacts_tabs.append((T("Public Contacts"), "public_contacts"))
-    if "private" in setting and auth.is_logged_in():
+        tabs.append((T("Public Contacts"), "public_contacts"))
+    if "private" in contacts_tabs and auth.is_logged_in():
         s3db.set_method(module, resourcename,
                         method = "private_contacts",
                         action = s3db.pr_Contacts)
-        contacts_tabs.append((T("Private Contacts"), "private_contacts"))
+        tabs.append((T("Private Contacts"), "private_contacts"))
 
-    # All tabs
-    tabs = [(T("Basic Details"), None),
-            address_tab,
-            ]
-    if contacts_tabs:
-        tabs.extend(contacts_tabs)
-
-    tabs.extend([(T("Images"), "image"),
-                 (T("Identity"), "identity"),
-                 (T("Education"), "education"),
-                 (T("Groups"), "group_membership"),
-                 (T("Journal"), "note"),
-                 (T("Skills"), "competency"),
-                 (T("Training"), "training"),
-                 (T("Map Settings"), "config"),
-                 ])
+    tabs += [(T("Images"), "image"),
+             (T("Identity"), "identity"),
+             (T("Education"), "education"),
+             (T("Groups"), "group_membership"),
+             (T("Journal"), "note"),
+             (T("Skills"), "competency"),
+             (T("Training"), "training"),
+             (T("Map Settings"), "config"),
+             ]
 
     s3db.configure("pr_person",
                    insertable = True,

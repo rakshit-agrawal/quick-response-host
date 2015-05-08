@@ -68,16 +68,7 @@ def index():
     auth.settings.register_onvalidation = register_validation
     auth.configure_user_fields()
 
-    page = None
-    if len(request.args):
-        # Use the first non-numeric argument as page name
-        # (RESTful custom controllers may have record IDs in Ajax URLs)
-        for arg in request.args:
-            pname = arg.split(".", 1)[0] if "." in arg else arg
-            if not pname.isdigit():
-                page = pname
-                break
-
+    page = request.args(0)
     custom = None
     if page:
         # Go to a custom page,
@@ -96,6 +87,9 @@ def index():
             current.log.warning("File not loadable",
                                 "%s, %s" % (page, sys.exc_info()[1]))
         else:
+            if "." in page:
+                # Remove format extension
+                page = page.split(".", 1)[0]
             if hasattr(custom, page):
                 controller = getattr(custom, page)()
             elif page != "login":
@@ -117,7 +111,6 @@ def index():
         except (ImportError, AttributeError):
             # No Custom Page available, continue with the default
             # @ToDo: cache this result in session
-            import sys
             current.log.warning("Custom homepage cannot be loaded",
                                 sys.exc_info()[1])
         else:
@@ -614,19 +607,18 @@ def person():
 
         next = URL(c = "default",
                    f = "person",
-                   args = [user_person_id, "user_profile"])
+                   args = [user_person_id, "user"])
         onaccept = lambda form: auth.s3_approve_user(form.vars),
-        auth.configure_user_fields()
         form = auth.profile(next = next,
                             onaccept = onaccept)
 
-        return dict(title = s3.crud_strings["pr_person"]["title_display"],
+        return dict(title = T("User Profile"),
                     rheader = rheader,
                     form = form,
                     )
 
     set_method("pr", "person",
-               method="user_profile",
+               method="user",
                action=auth_profile_method)
 
     # Custom Method for Contacts
@@ -769,11 +761,6 @@ def person():
         return output
     s3.postp = postp
 
-    if settings.get_hrm_record_tab():
-        hr_tab = (T("Staff/Volunteer Record"), "human_resource")
-    else:
-        hr_tab = None
-
     if settings.get_hrm_staff_experience() == "experience":
         experience_tab = (T("Experience"), "experience")
     else:
@@ -793,11 +780,6 @@ def person():
         description_tab = (T("Description"), "physical_description")
     else:
         description_tab = None
-
-    if settings.get_pr_use_address():
-        address_tab = (T("Address"), "address")
-    else:
-        address_tab = None
 
     if settings.get_hrm_use_education():
         education_tab = (T("Education"), "education")
@@ -825,19 +807,13 @@ def person():
     else:
         trainings_tab = None
 
-    setting = settings.get_pr_contacts_tabs()
-    if setting:
-        contacts_tab = (T("Contacts"), "contacts")
-    else:
-        contacts_tab = None
-
     tabs = [(T("Person Details"), None),
-            (T("User Account"), "user_profile"),
-            hr_tab,
+            (T("User Account"), "user"),
+            (T("Staff/Volunteer Record"), "human_resource"),
             id_tab,
             description_tab,
-            address_tab,
-            contacts_tab,
+            (T("Address"), "address"),
+            (T("Contacts"), "contacts"),
             education_tab,
             trainings_tab,
             certificates_tab,
@@ -851,8 +827,8 @@ def person():
             ]
 
     output = s3_rest_controller("pr", "person",
-                                rheader = lambda r, tabs=tabs: \
-                                          s3db.pr_rheader(r, tabs=tabs))
+                                rheader = lambda r: \
+                                    s3db.pr_rheader(r, tabs=tabs))
     return output
 
 # -----------------------------------------------------------------------------
@@ -979,18 +955,13 @@ def about():
         item = db(query).select(table.id,
                                 table.body,
                                 limitby=(0, 1)).first()
-
-        get_vars = {"module": module, "resource": resource}
-
         if item:
             if ADMIN:
                 item = DIV(XML(item.body),
                            BR(),
                            A(T("Edit"),
                              _href=URL(c="cms", f="post",
-                                       args=[item.id, "update"],
-                                       vars=get_vars,
-                                       ),
+                                       args=[item.id, "update"]),
                              _class="action-btn"))
             else:
                 item = DIV(XML(item.body))
@@ -1000,10 +971,10 @@ def about():
             else:
                 _class = "action-btn"
             item = A(T("Edit"),
-                     _href=URL(c="cms", f="post",
-                               args="create",
-                               vars=get_vars,
-                               ),
+                     _href=URL(c="cms", f="post", args="create",
+                               vars={"module": module,
+                                     "resource": resource
+                                     }),
                      _class="%s cms-edit" % _class)
         else:
             item = H2(T("About"))
@@ -1011,24 +982,24 @@ def about():
         item = H2(T("About"))
 
     # Technical Support Details
-    import platform
-    import string
+    import sys
     import subprocess
+    import string
 
-    sahana_version = open(os.path.join(request.folder, "VERSION"), "r").read()
+    python_version = sys.version
     web2py_version = open(apath("../VERSION"), "r").read()[8:]
-    python_version = platform.python_version()
-    os_version = platform.platform()
+    sahana_version = open(os.path.join(request.folder, "VERSION"), "r").read()
 
     # Database
+    sqlite = mysql = pgsql = ""
     if db_string.find("sqlite") != -1:
         try:
             import sqlite3
             sqlite_version = sqlite3.version
         except:
             sqlite_version = T("Unknown")
-        database = TR(TD("SQLite"),
-                      TD(sqlite_version))
+        sqlite = TR(TD("SQLite"),
+                    TD(sqlite_version))
 
     elif db_string.find("mysql") != -1:
         try:
@@ -1050,11 +1021,11 @@ def about():
             cur.execute("SELECT VERSION()")
             mysql_version = cur.fetchone()
 
-        database = TAG[""](TR(TD("MySQL"),
-                              TD(mysql_version)),
-                           TR(TD("MySQLdb python driver"),
-                              TD(mysqldb_version)),
-                           )
+        mysql = TAG[""](TR(TD("MySQL"),
+                           TD(mysql_version)),
+                        TR(TD("MySQLdb python driver"),
+                           TD(mysqldb_version)),
+                        )
 
     else:
         # Postgres
@@ -1078,94 +1049,57 @@ def about():
             cur.execute("SELECT version()")
             pgsql_version = cur.fetchone()
 
-        database = TAG[""](TR(TD("PostgreSQL"),
-                              TD(pgsql_version)),
-                              TR(TD("psycopg2 python driver"),
-                                 TD(psycopg_version)),
-                              )
+        pgsql = TAG[""](TR(TD("PostgreSQL"),
+                           TD(pgsql_version)),
+                        TR(TD("psycopg2 python driver"),
+                           TD(psycopg_version)),
+                        )
 
     # Libraries
-    try:
-        from lxml import etree
-        lxml_version = ".".join([str(i) for i in etree.LXML_VERSION])
-    except:
-        lxml_version = T("Not installed or incorrectly configured.")
+    # @ToDo: Add more: Shapely, xlrd, etc
     try:
         import reportlab
         reportlab_version = reportlab.Version
     except:
         reportlab_version = T("Not installed or incorrectly configured.")
     try:
-        import shapely
-        shapely_version = shapely.__version__
-    except:
-        shapely_version = T("Not installed or incorrectly configured.")
-    try:
-        import xlrd
-        xlrd_version = xlrd.__VERSION__
-    except:
-        xlrd_version = T("Not installed or incorrectly configured.")
-    try:
         import xlwt
         xlwt_version = xlwt.__VERSION__
     except:
         xlwt_version = T("Not installed or incorrectly configured.")
 
-    details = DIV(TABLE(THEAD(),
-                        TBODY(TR(TD(STRONG(T("Configuration"))),
-                                 TD(),
-                                 _class="odd",
-                                 ),
-                              TR(TD(T("Public URL")),
-                                 TD(settings.get_base_public_url()),
-                                 ),
-                              TR(TD(STRONG(T("Core Components"))),
-                                 TD(STRONG(T("Version"))),
-                                 _class="odd",
-                                 ),
-                              TR(TD(settings.get_system_name_short()),
+    details = DIV(TABLE(THEAD(TR(TH(T("Core Components"),
+                                    _class="sorting_disabled"),
+                                 TH(T("Version"),
+                                    _class="sorting_disabled"),
+                                 )),
+                        TBODY(TR(TD(deployment_settings.get_system_name_short()),
                                  TD(sahana_version),
-                                 ),
+                                 _class="odd"),
                               TR(TD(T("Web Server")),
                                  TD(request.env.server_software),
-                                 _class="odd",
                                  ),
                               TR(TD("Web2Py"),
                                  TD(web2py_version),
-                                 ),
+                                 _class="odd"),
                               TR(TD("Python"),
                                  TD(python_version),
-                                 _class="odd",
-                                 ),
-                              TR(TD("Operating System"),
-                                 TD(os_version),
                                  ),
                               TR(TD(STRONG(T("Database"))),
                                  TD(),
-                                 _class="odd",
-                                 ),
-                              database,
+                                 _class="odd"),
+                              sqlite,
+                              mysql,
+                              pgsql,
                               TR(TD(STRONG(T("Other Components"))),
                                  TD(),
-                                 _class="odd",
-                                 ),
-                              TR(TD("lxml"),
-                                 TD(lxml_version),
-                                 ),
+                                 _class="odd"),
                               TR(TD("ReportLab"),
                                  TD(reportlab_version),
-                                 _class="odd",
-                                 ),
-                              TR(TD("Shapely"),
-                                 TD(shapely_version),
-                                 ),
-                              TR(TD("xlrd"),
-                                 TD(xlrd_version),
-                                 _class="odd",
                                  ),
                               TR(TD("xlwt"),
                                  TD(xlwt_version),
-                                 ),
+                                 _class="odd"),
                         _class="dataTable display"),
                   _class="table-container")
                   )
@@ -1211,18 +1145,13 @@ def help():
         item = db(query).select(table.id,
                                 table.body,
                                 limitby=(0, 1)).first()
-
-        get_vars = {"module": module, "resource": resource}
-
         if item:
             if ADMIN:
                 item = DIV(XML(item.body),
                            BR(),
                            A(T("Edit"),
                              _href=URL(c="cms", f="post",
-                                       args=[item.id, "update"],
-                                       vars=get_vars,
-                                       ),
+                                       args=[item.id, "update"]),
                              _class="action-btn"))
             else:
                 item = DIV(XML(item.body))
@@ -1232,10 +1161,10 @@ def help():
             else:
                 _class = "action-btn"
             item = A(T("Edit"),
-                     _href=URL(c="cms", f="post",
-                               args="create",
-                               vars=get_vars,
-                               ),
+                     _href=URL(c="cms", f="post", args="create",
+                               vars={"module": module,
+                                     "resource": resource
+                                     }),
                      _class="%s cms-edit" % _class)
         else:
             item = TAG[""](H2(T("Help")),

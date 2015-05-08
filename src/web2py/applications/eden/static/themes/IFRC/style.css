@@ -269,20 +269,9 @@ form table td:first-child {
 	border-style: none;
 	background-color: transparent;
 }
-form table.embeddedComponent {
-    overflow: auto;
-}
-form table.embeddedComponent .map_wrapper {
-    min-width: 500px;
-}
-form table.embeddedComponent td {
-    border-style: none;
-}
-form table.embeddedComponent tr.label-row > td,
-form table.embeddedComponent tr.read-row > td,
-form table.embeddedComponent tr.edit-row > td,
-form table.embeddedComponent tr.edit-row > td {
-    border-style: solid;
+form table.embeddedComponent td,
+form table.embeddedComponent td:first-child {
+	border-style: solid;
 }
 
 /* Form Layout styles */
@@ -350,9 +339,8 @@ div.form-container form fieldset input.errorfield {
     background-color: #dc032e;
 }
 
-/* Red indicators */
+/* Required Field indicator */
 .error,
-.expired,
 .req,
 .req_key {
     color: #dc032e;
@@ -471,15 +459,8 @@ button.alert-send-btn:enabled {
 }
 .pr-contact-data,
 .pr-emergency-data,
-.pr-contact-actions,
-.pr-contact-priority,
-.pr-contact-details {
+.pr-contact-actions {
     display: inline-block;
-}
-.pr-contact-data,
-.pr-emergency-data {
-    width: 400px;
-    vertical-align: top;
 }
 .pr-contacts h3,
 .pr-emergency-contacts .pr-emergency-contact,
@@ -492,34 +473,12 @@ button.alert-send-btn:enabled {
     font-style: italic;
     color: #7f7f7f;
 }
-.pr-contact-priority {
-  border: thin solid #a0a0a0;
-  color: #a0a0a0;
-  display: inline-block;
-  margin: 3px 8px 0 0;
-  padding: 0 3px;
-  vertical-align: top;
+.pr-contact-data,
+.pr-emergency-data {
+    width: 400px;
+    vertical-align: top;
 }
 
 .profile-sub-header .icon {
     margin-right: 8px;
-}
-
-.po-summary {
-    display: table;
-    margin-bottom: 1rem;
-    padding: 0.5rem;
-    border: 1px solid #a0a0a0;
-}
-.po-summary-info {
-    display: table-row;
-}
-.po-summary-info label,
-.po-summary-info > span {
-    display: table-cell;
-    font-size: 0.9rem;
-    padding-right: 0.8rem;
-}
-.po-summary-info label {
-    font-weight: bold;
 }

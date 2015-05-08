@@ -3,7 +3,7 @@
 """
     S3 Adobe PDF codec
 
-    @copyright: 2011-15 (c) Sahana Software Foundation
+    @copyright: 2011-14 (c) Sahana Software Foundation
     @license: MIT
 
     Permission is hereby granted, free of charge, to any person
@@ -190,9 +190,6 @@ class S3RL_PDF(S3Codec):
                                           B - Both
             @keyword pdf_paper_alignment: Portrait (default) or Landscape
             @keyword use_colour:      True to add colour to the cells. default False
-
-            @ToDo: Add Page Numbers in Footer:
-                   http://www.blog.pythonlibrary.org/2013/08/12/reportlab-how-to-add-page-numbers/
         """
 
         if not PILImported:
@@ -217,16 +214,9 @@ class S3RL_PDF(S3Codec):
         if title == None:
             title = "Report"
         docTitle = "%s %s" % (title, now)
-        filename = attr.get("pdf_filename")
-        if filename is None:
-            if not isinstance(title, str):
-                # Must be str not unicode
-                title = title.encode("utf-8")
-            filename = "%s_%s.pdf" % (title, now)
-        elif len(filename) < 5 or filename[-4:] != ".pdf":
-            # Add extension
-            filename = "%s.pdf" % filename
-        self.filename = filename
+        self.filename = attr.get("pdf_filename")
+        if self.filename == None:
+            self.filename = "%s_%s.pdf" % (title, now)
 
         # Get the Doc Template
         paper_size = attr.get("paper_size")
@@ -1126,7 +1116,7 @@ class S3PDFTable(object):
                  ("VALIGN", (0, 0), (-1, -1), "TOP"),
                  ("LINEBELOW", (0, 0), (endCol, 0), 1, Color(0, 0, 0)),
                  ("FONTNAME", (0, 0), (endCol, 0), font_name_bold),
-                 ]
+                ]
         sappend = style.append
         if colour_required:
             sappend(("BACKGROUND", (0, 0), (endCol, 0), self.headerColour))
@@ -1220,9 +1210,9 @@ class S3html2pdf():
             return self.parse_div(html)
         elif (isinstance(html, basestring) or isinstance(html, lazyT)):
             if title:
-                para = [Paragraph(s3_unicode(html), self.boldstyle)]
+                para = [Paragraph(html, self.boldstyle)]
             else:
-                para = [Paragraph(s3_unicode(html), self.normalstyle)]
+                para = [Paragraph(html, self.normalstyle)]
             self.normalstyle = self.plainstyle
             return para
         return None
@@ -1302,13 +1292,13 @@ class S3html2pdf():
             src = html.attributes["_src"]
             root_dir = "%s%s%s" % (sep, current.request.application, sep)
             if uploadfolder:
-                src = src.rsplit("/", 1) # Don't use os.sep here
+                src = src.rsplit(sep, 1)
                 src = os.path.join(uploadfolder, src[1])
             elif src.startswith("%sstatic" % root_dir):
                 src = src.split(root_dir)[-1]
                 src = os.path.join(current.request.folder, src)
             else:
-                src = src.rsplit("/", 1) # Don't use os.sep here
+                src = src.rsplit(sep, 1)
                 src = os.path.join(current.request.folder,
                                    "uploads%s" % sep, src[1])
             if os.path.exists(src):

@@ -29,7 +29,7 @@ def config(settings):
     settings.base.prepopulate = ("skeleton", "default/users")
 
     # Theme (folder to use for views/layout.html)
-    #settings.base.theme = "skeleton"
+    settings.base.theme = "skeleton"
 
     # Authentication settings
     # Should users be allowed to register themselves?
@@ -89,7 +89,7 @@ def config(settings):
     # Uncomment to Hide the language toolbar
     #settings.L10n.display_toolbar = False
     # Default timezone for users
-    #settings.L10n.utc_offset = "+0100"
+    #settings.L10n.utc_offset = "UTC +0100"
     # Number formats (defaults to ISO 31-0)
     # Decimal separator for numbers (defaults to ,)
     settings.L10n.decimal_separator = "."
@@ -101,13 +101,6 @@ def config(settings):
     #settings.L10n.translate_gis_location = True
     # Uncomment this to Translate Organisation Names/Acronyms
     #settings.L10n.translate_org_organisation = True
-    # Finance settings
-    #settings.fin.currencies = {
-    #    "EUR" : T("Euros"),
-    #    "GBP" : T("Great British Pounds"),
-    #    "USD" : T("United States Dollars"),
-    #}
-    #settings.fin.currency_default = "USD"
 
     # Security Policy
     # http://eden.sahanafoundation.org/wiki/S3AAA#System-widePolicy
@@ -121,6 +114,23 @@ def config(settings):
     # 8: Apply Controller, Function, Table ACLs, Entity Realm + Hierarchy and Delegations
     #
     #settings.security.policy = 7 # Organisation-ACLs
+
+    # RSS feeds
+    #settings.frontpage.rss = [
+    #    {"title": "Eden",
+    #     # Trac timeline
+    #     "url": "http://eden.sahanafoundation.org/timeline?ticket=on&changeset=on&milestone=on&wiki=on&max=50&daysback=90&format=rss"
+    #    },
+    #    {"title": "Twitter",
+    #     # @SahanaFOSS
+    #     #"url": "https://search.twitter.com/search.rss?q=from%3ASahanaFOSS" # API v1 deprecated, so doesn't work, need to use 3rd-party service, like:
+    #     "url": "http://www.rssitfor.me/getrss?name=@SahanaFOSS"
+    #     # Hashtag
+    #     #url: "http://search.twitter.com/search.atom?q=%23eqnz" # API v1 deprecated, so doesn't work, need to use 3rd-party service, like:
+    #     #url: "http://api2.socialmention.com/search?q=%23eqnz&t=all&f=rss"
+    #    }
+    #]
+
 
     # -------------------------------------------------------------------------
     # Comment/uncomment modules here to disable/enable them

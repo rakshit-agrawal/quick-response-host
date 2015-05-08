@@ -47,7 +47,6 @@ except ImportError:
 
 from gluon import *
 
-from ..s3datetime import s3_encode_iso_datetime
 from ..s3sync import S3SyncBaseAdapter
 
 DEBUG = False
@@ -192,7 +191,7 @@ class S3SyncAdapter(S3SyncBaseAdapter):
               (repository.url, resource_name, config.uuid)
         last_pull = task.last_pull
         if last_pull and task.update_policy not in ("THIS", "OTHER"):
-            url += "&msince=%s" % s3_encode_iso_datetime(last_pull)
+            url += "&msince=%s" % xml.encode_iso_datetime(last_pull)
         url += "&include_deleted=True"
 
         # Send sync filters to peer
@@ -414,7 +413,7 @@ class S3SyncAdapter(S3SyncBaseAdapter):
             url += "&conflict_policy=%s" % conflict_policy
         last_push = task.last_push
         if last_push and update_policy not in ("THIS", "OTHER"):
-            url += "&msince=%s" % s3_encode_iso_datetime(last_push)
+            url += "&msince=%s" % xml.encode_iso_datetime(last_push)
         else:
             last_push = None
         _debug("...push to URL %s" % url)

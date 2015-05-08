@@ -88,7 +88,6 @@ class S3StatsModel(S3Model):
                            org_resource_type = T("Organization Resource Type"),
                            project_beneficiary_type = T("Project Beneficiary Type"),
                            project_campaign_keyword = T("Project Campaign Keyword"),
-                           #project_indicator = T("Project Indicator"),
                            stats_demographic = T("Demographic"),
                            stats_impact_type = T("Impact Type"),
                            # @ToDo; Deprecate
@@ -121,7 +120,6 @@ class S3StatsModel(S3Model):
                            org_resource = T("Organization Resource"),
                            project_beneficiary = T("Project Beneficiary"),
                            project_campaign_response_summary = T("Project Campaign Response Summary"),
-                           #project_indicator_data = T("Project Indicator Data"),
                            stats_demographic_data = T("Demographic Data"),
                            stats_impact = T("Impact"),
                            # @ToDo: Deprecate
@@ -1211,8 +1209,7 @@ def stats_demographic_data_controller():
         rheader = None
 
     output = current.rest_controller("stats", "demographic_data",
-                                     rheader = rheader,
-                                     )
+                                     rheader=rheader)
 
     return output
 
@@ -1282,6 +1279,9 @@ class S3StatsImpactModel(S3Model):
                      super_link("data_id", "stats_data"),
                      # Instance (link to Photos/Reports)
                      super_link("doc_id", "doc_entity"),
+                     Field("name", #notnull=True,
+                           label = T("Name"),
+                           ),
                      # This is a component, so needs to be a super_link
                      # - can't override field name, ondelete or requires
                      super_link("parameter_id", "stats_parameter",
@@ -1329,11 +1329,10 @@ class S3StatsImpactModel(S3Model):
         # Reusable Field
         impact_id = S3ReusableField("impact_id", "reference %s" % tablename,
                                      label = T("Impact"),
-                                     ondelete = "CASCADE",
-                                     represent = S3Represent(lookup=tablename),
                                      requires = IS_EMPTY_OR(
                                         IS_ONE_OF_EMPTY(db, "stats_impact.id")),
-                                     )
+                                     represent = S3Represent(lookup=tablename),
+                                     ondelete = "CASCADE")
 
         configure(tablename,
                   filter_widgets = filter_widgets,

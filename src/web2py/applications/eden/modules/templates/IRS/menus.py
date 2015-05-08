@@ -67,9 +67,8 @@ class S3OptionsMenu(default.S3OptionsMenu):
                         M("Report by Age/Gender", m="report",
                           vars=dict(rows="age_group",
                                     cols="gender",
-                                    fact="count(pe_label)",
-                                    ),
-                          ),
+                                    fact="pe_label",
+                                    aggregate="count")),
                     ),
                     #M("Missing Persons", f="person")(
                     #    M("List all"),

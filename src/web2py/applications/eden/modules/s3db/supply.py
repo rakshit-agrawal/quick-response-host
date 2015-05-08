@@ -716,19 +716,6 @@ $.filterOptionsS3({
                      s3_comments(),
                      *s3_meta_fields())
 
-        # CRUD strings
-        crud_strings[tablename] = Storage(
-            label_create = T("Add Item to Kit"),
-            title_display = T("Kit Item Details"),
-            title_list = T("Kit Items"),
-            title_update = T("Edit Kit Item"),
-            label_list_button = T("List Kit Items"),
-            label_delete_button = T("Remove Item from Kit"),
-            msg_record_created = T("Item added to Kit"),
-            msg_record_modified = T("Kit Item updated"),
-            msg_record_deleted = T("Item removed from Kit"),
-            msg_list_empty = T("No Items currently in this Kit"))
-
         # =====================================================================
         # Alternative Items
         #
@@ -1090,11 +1077,13 @@ $.filterOptionsS3({
         """
 
         db = current.db
+        auth = current.auth
 
         vars = form.vars
         item_id = vars.id
         catalog_id = vars.catalog_id
         catalog_item_id = None
+
 
         citable = db.supply_catalog_item
         query = (citable.item_id == item_id) & \
@@ -1116,7 +1105,7 @@ $.filterOptionsS3({
                             item_category_id = vars.item_category_id,
                             item_id = item_id
                             )
-        #current.auth.s3_set_record_owner(citable, catalog_item_id, force_update=True)
+        #auth.s3_set_record_owner(citable, catalog_item_id, force_update=True)
 
         # Update UM
         um = vars.um or db.supply_item.um.default
@@ -2623,6 +2612,6 @@ def supply_get_shipping_code(type, site_id, field):
             ref = ref_row(field)
             number = int(ref[-6:])
 
-    return "%s%06d" % (code, number + 1)
+    return "%s%06d" % (code, number+1)
 
 # END =========================================================================

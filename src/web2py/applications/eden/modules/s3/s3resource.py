@@ -68,8 +68,7 @@ from gluon.storage import Storage
 from gluon.tools import callback
 
 from s3dal import Expression, Field, Row, Rows, Table
-from s3data import S3DataTable, S3DataList
-from s3datetime import s3_format_datetime
+from s3data import S3DataTable, S3DataList, S3PivotTable
 from s3fields import S3Represent, s3_all_meta_field_names
 from s3query import FS, S3ResourceField, S3ResourceQuery, S3Joins, S3URLQuery
 from s3utils import s3_has_foreign_key, s3_get_foreign_key, s3_unicode, s3_get_last_record_id, s3_remove_last_record_id
@@ -1250,6 +1249,25 @@ class S3Resource(object):
         return dl, numrows, data["ids"]
 
     # -------------------------------------------------------------------------
+    def pivottable(self, rows, cols, layers, strict=True):
+        """
+            Generate a pivot table of this resource.
+
+            @param rows: field selector for the rows dimension
+            @param cols: field selector for the columns dimension
+            @param layers: list of tuples (field selector, method) for
+                           the aggregation layers
+            @param strict: filter out dimension values which don't match
+                           the resource filter
+
+            @return: an S3PivotTable instance
+
+            Supported methods: see S3PivotTable
+        """
+
+        return S3PivotTable(self, rows, cols, layers, strict=strict)
+
+    # -------------------------------------------------------------------------
     def json(self,
              fields=None,
              start=0,
@@ -1343,11 +1361,6 @@ class S3Resource(object):
 
                 # Must include all meta-fields
                 if f in meta_fields:
-                    append(f)
-                    continue
-
-                # Must include the fkey if component
-                if self.parent and not self.link and f == self.fkey:
                     append(f)
                     continue
 
@@ -1754,11 +1767,12 @@ class S3Resource(object):
             #if DEBUG:
             #    _start = datetime.datetime.now()
             import uuid
+            tfmt = xml.ISOFORMAT
             args.update(domain=xml.domain,
                         base_url=current.response.s3.base_url,
                         prefix=self.prefix,
                         name=self.name,
-                        utcnow=s3_format_datetime(),
+                        utcnow=datetime.datetime.utcnow().strftime(tfmt),
                         msguid=uuid.uuid4().urn)
             tree = xmlformat.transform(tree, **args)
             #if DEBUG:
@@ -2451,12 +2465,20 @@ class S3Resource(object):
 
         if not job_id:
 
+            # Resource data
+            prefix = self.prefix
+            name = self.name
+
             # Additional stylesheet parameters
-            args.update(domain=xml.domain,
-                        base_url=current.response.s3.base_url,
-                        prefix=self.prefix,
-                        name=self.name,
-                        utcnow=s3_format_datetime())
+            tfmt = xml.ISOFORMAT
+            utcnow = datetime.datetime.utcnow().strftime(tfmt)
+            domain = xml.domain
+            base_url = current.response.s3.base_url
+            args.update(domain=domain,
+                        base_url=base_url,
+                        prefix=prefix,
+                        name=name,
+                        utcnow=utcnow)
 
             # Build import tree
             if not isinstance(source, (list, tuple)):
@@ -2950,11 +2972,12 @@ class S3Resource(object):
         # Transformation
         tree = etree.ElementTree(root)
         if stylesheet is not None:
+            tfmt = xml.ISOFORMAT
             args = dict(domain=xml.domain,
                         base_url=current.response.s3.base_url,
                         prefix=self.prefix,
                         name=self.name,
-                        utcnow=s3_format_datetime())
+                        utcnow=datetime.datetime.utcnow().strftime(tfmt))
 
             tree = xml.transform(tree, stylesheet, **args)
             if tree is None:
@@ -3805,14 +3828,15 @@ class S3Resource(object):
                     vappend = values.append
                     for row in rows:
                         v = row[colname]
-                        vappend(v if v else [None])
+                        if v:
+                            vappend(v)
                     values = set(chain.from_iterable(values))
 
                     include, exclude = af.values(rfield)
                     fdict = {}
                     if include:
                         for v in values:
-                            vstr = s3_unicode(v) if v is not None else v
+                            vstr = s3_unicode(v)
                             if vstr in include and vstr not in exclude:
                                 fdict[v] = None
                     else:
@@ -4050,8 +4074,6 @@ class S3AxisFilter(object):
             value = self.r
             if isinstance(value, (list, tuple)):
                 value = [s3_unicode(v) for v in value]
-                if not value:
-                    value = [None]
             else:
                 value = [s3_unicode(value)]
             if op == "CONTAINS":
@@ -4371,8 +4393,7 @@ class S3ResourceFilter(object):
 
         tablenames = ("gis_location",
                       "gis_feature_query",
-                      "gis_layer_shapefile",
-                      )
+                      "gis_layer_shapefile")
 
         POLYGON = "POLYGON((%s %s, %s %s, %s %s, %s %s, %s %s))"
 
@@ -4609,19 +4630,13 @@ class S3ResourceFilter(object):
 
         resource = self.resource
 
-        inner_joins = self.get_joins(left=False)
-        if inner_joins:
-            inner = S3Joins(resource.tablename, inner_joins)
-            ijoins = ", ".join([str(j) for j in inner.as_list()])
-        else:
-            ijoins = None
-
         left_joins = self.get_joins(left=True)
         if left_joins:
             left = S3Joins(resource.tablename, left_joins)
-            ljoins = ", ".join([str(j) for j in left.as_list()])
+            joins = ", ".join([str(j) for j in left.as_list()])
         else:
-            ljoins = None
+            left = None
+            joins = None
 
         vfltr = self.get_filter()
         if vfltr:
@@ -4631,16 +4646,15 @@ class S3ResourceFilter(object):
 
         represent = "<S3ResourceFilter %s, " \
                     "query=%s, " \
-                    "join=[%s], " \
                     "left=[%s], " \
                     "distinct=%s, " \
-                    "filter=%s>" % (resource.tablename,
-                                    self.get_query(),
-                                    ijoins,
-                                    ljoins,
-                                    self.distinct,
-                                    vfltr,
-                                    )
+                    "filter=%s>" % (
+                        resource.tablename,
+                        self.get_query(),
+                        joins,
+                        self.distinct,
+                        vfltr
+                    )
 
         return represent
 

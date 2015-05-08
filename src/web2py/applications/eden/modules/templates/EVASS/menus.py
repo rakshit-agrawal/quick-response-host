@@ -129,13 +129,13 @@ class S3OptionsMenu(default.S3OptionsMenu):
                         M("Staff Report", m="report"),
                     ),
                     M("Personal Profile", f="person",
-                      check=personal_mode, vars=dict(access="personal")),
+                      check=personal_mode, vars=dict(mode="personal")),
                     # This provides the link to switch to the manager mode:
                     M("Staff Management", f="index",
                       check=[personal_mode, is_org_admin]),
                     # This provides the link to switch to the personal mode:
                     M("Personal Profile", f="person",
-                      check=manager_mode, vars=dict(access="personal"))
+                      check=manager_mode, vars=dict(mode="personal"))
                 )
 
     # -------------------------------------------------------------------------
@@ -215,17 +215,17 @@ class S3OptionsMenu(default.S3OptionsMenu):
                           check=show_programmes),
                     ),
                     M("My Profile", f="person",
-                      check=personal_mode, vars=dict(access="personal")),
+                      check=personal_mode, vars=dict(mode="personal")),
                     M("My Tasks", f="task",
                       check=[personal_mode, show_tasks],
-                      vars=dict(access="personal",
+                      vars=dict(mode="personal",
                                 mine=1)),
                     # This provides the link to switch to the manager mode:
                     M("Volunteer Management", f="index",
                       check=[personal_mode, is_org_admin]),
                     # This provides the link to switch to the personal mode:
                     M("Personal Profile", f="person",
-                      check=manager_mode, vars=dict(access="personal"))
+                      check=manager_mode, vars=dict(mode="personal"))
                 )
 
 

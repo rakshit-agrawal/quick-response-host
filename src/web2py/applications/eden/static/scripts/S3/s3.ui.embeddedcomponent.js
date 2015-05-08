@@ -44,7 +44,6 @@
 
             // Namespace for events
             this.namespace = '.embeddedComponent';
-            this.namespaceID = this.namespace + this.id;
         },
 
         /**

@@ -197,9 +197,7 @@ class S3FireStationModel(S3Model):
                      Field("name", notnull=True, length=64,
                            label = T("Name"),
                            ),
-                     Field("code", length=10,
-                           # @ToDo: code_requires based on deployment_setting
-                           unique=True,
+                     Field("code", unique=True, length=64,
                            label = T("Code"),
                            ),
                      Field("facility_type", "integer",
@@ -509,11 +507,12 @@ class S3FireStationModel(S3Model):
             req = r.factory(prefix="irs",
                             name="ireport_vehicle",
                             args=["report"],
-                            vars=Storage(rows = "asset_id",
-                                         cols = "ireport_id",
-                                         fact = "sum(minutes)",
-                                         ),
-                            )
+                            vars=Storage(
+                              rows = "asset_id",
+                              cols = "ireport_id",
+                              fact = "minutes",
+                              aggregate = "sum")
+                           )
             req.set_handler("report", S3Report())
             req.resource.add_filter(query)
             return req(rheader=rheader)

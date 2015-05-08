@@ -80,7 +80,6 @@ from gluon.languages import lazyT, regex_translate
 from gluon.storage import Storage
 
 from s3dal import Rows
-from s3datetime import s3_format_datetime, s3_parse_datetime
 from s3fields import s3_all_meta_field_names
 from s3rest import S3Method
 from s3track import S3Trackable
@@ -2728,19 +2727,18 @@ class GIS(object):
             if len(layers) > 1:
                 layers.exclude(lambda row: row["gis_layer_feature.style_default"] == False)
             if len(layers) == 1:
-                layer = layers.first()
+                marker = layers.first()
             else:
                 # Can't differentiate
-                layer = None
+                marker = None
 
-            if layer:
-                _marker = layer["gis_marker"]
-                if _marker.image:
-                    marker = dict(image=_marker.image,
-                                  height=_marker.height,
-                                  width=_marker.width,
-                                  gps_marker=layer["gis_style"].gps_marker
-                                  )
+            if marker:
+                _marker = marker["gis_marker"]
+                marker = dict(image=_marker.image,
+                              height=_marker.height,
+                              width=_marker.width,
+                              gps_marker=marker["gis_style"].gps_marker
+                              )
 
         if not marker:
             # Default
@@ -4891,7 +4889,6 @@ page.render('%(filename)s', {format: 'jpeg', quality: '100'});''' % \
                 inherited = True
                 lat = Lx_lat
                 lon = Lx_lon
-                wkt = None
             elif path != _path or L0 != L0_name or L1 != L1_name or L2 != name or not wkt:
                 fixup_required = True
 
@@ -5029,7 +5026,6 @@ page.render('%(filename)s', {format: 'jpeg', quality: '100'});''' % \
                 inherited = True
                 lat = Lx_lat
                 lon = Lx_lon
-                wkt = None
             elif path != _path or L0 != L0_name or L1 != L1_name or L2 != L2_name or L3 != name or not wkt:
                 fixup_required = True
 
@@ -5197,7 +5193,6 @@ page.render('%(filename)s', {format: 'jpeg', quality: '100'});''' % \
                 inherited = True
                 lat = Lx_lat
                 lon = Lx_lon
-                wkt = None
             elif path != _path or L0 != L0_name or L1 != L1_name or L2 != L2_name or L3 != L3_name or L4 != name or not wkt:
                 fixup_required = True
 
@@ -5399,7 +5394,6 @@ page.render('%(filename)s', {format: 'jpeg', quality: '100'});''' % \
                 inherited = True
                 lat = Lx_lat
                 lon = Lx_lon
-                wkt = None
             elif path != _path or L0 != L0_name or L1 != L1_name or L2 != L2_name or L3 != L3_name or L4 != L4_name or L5 != name or not wkt:
                 fixup_required = True
 
@@ -5624,7 +5618,6 @@ page.render('%(filename)s', {format: 'jpeg', quality: '100'});''' % \
             inherited = True
             lat = Lx_lat
             lon = Lx_lon
-            wkt = None
         elif path != _path or L0 != L0_name or L1 != L1_name or L2 != L2_name or L3 != L3_name or L4 != L4_name or L5 != L5_name or not wkt:
             fixup_required = True
 
@@ -9167,6 +9160,9 @@ class S3ExportPOI(S3Method):
             @param attr: controller options for this request
         """
 
+        import time
+        tfmt = current.xml.ISOFORMAT
+
         # Determine request Lx
         current_lx = r.record
         if not current_lx: # or not current_lx.level:
@@ -9200,7 +9196,12 @@ class S3ExportPOI(S3Method):
             if msince.lower() == "auto":
                 msince = "auto"
             else:
-                msince = s3_parse_datetime(msince)
+                try:
+                    (y, m, d, hh, mm, ss, t0, t1, t2) = \
+                        time.strptime(msince, tfmt)
+                    msince = datetime.datetime(y, m, d, hh, mm, ss)
+                except ValueError:
+                    msince = None
 
         # Export a combined tree
         tree = self.export_combined_tree(tables,
@@ -9228,7 +9229,7 @@ class S3ExportPOI(S3Method):
         if tree and stylesheet is not None:
             args = Storage(domain=xml.domain,
                            base_url=s3.base_url,
-                           utcnow=s3_format_datetime())
+                           utcnow=datetime.datetime.utcnow().strftime(tfmt))
             tree = xml.transform(tree, stylesheet, **args)
         if tree:
             if as_json:

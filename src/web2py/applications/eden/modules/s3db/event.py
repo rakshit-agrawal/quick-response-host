@@ -750,12 +750,6 @@ class S3IncidentModel(S3Model):
                                           "autocomplete": "name",
                                           "autodelete": True,
                                           },
-                            stats_impact = {"link": "event_event_impact",
-                                            "joinby": "incident_id",
-                                            "key": "impact_id",
-                                            "actuate": "replace",
-                                            "autodelete": True,
-                                            },
                             )
 
         # Custom Method to Assign HRs
@@ -1806,61 +1800,14 @@ class S3EventImpactModel(S3Model):
         tablename = "event_event_impact"
         self.define_table(tablename,
                           self.event_event_id(ondelete = "CASCADE"),
-                          self.event_incident_id(ondelete = "CASCADE"),
+                          #self.event_incident_id(ondelete = "CASCADE"),
                           self.stats_impact_id(empty = False,
-                                               ondelete = "CASCADE",
+                                               ondelete = "RESTRICT",
                                                ),
                           *s3_meta_fields())
 
-        # Table configuration
-        self.configure(tablename,
-                       onaccept = self.event_impact_onaccept,
-                       )
-
         # Pass names back to global scope (s3.*)
         return dict()
-
-    # -------------------------------------------------------------------------
-    @staticmethod
-    def event_impact_onaccept(form):
-        """
-            Onaccept-routine for event_impact links:
-                - populate event_id from incident if empty
-        """
-
-        try:
-            formvars = form.vars
-            record_id = formvars.id
-        except KeyError:
-            return
-        if not record_id:
-            return
-
-        db = current.db
-        s3db = current.s3db
-
-        table = s3db.event_event_impact
-
-        # Make sure we have both keys
-        if any(f not in formvars for f in ("event_id", "incident_id")):
-            query = (table.id == record_id)
-            record = db(query).select(table.id,
-                                      table.event_id,
-                                      table.incident_id,
-                                      limitby=(0, 1)).first()
-            if not record:
-                return
-        else:
-            record = formvars
-
-        # If event_id is empty - populate it from the incident
-        if not record.event_id and record.incident_id:
-            itable = s3db.event_incident
-            query = (itable.id == record.incident_id)
-            incident = db(query).select(itable.event_id,
-                                        limitby=(0, 1)).first()
-            if incident:
-                db(table.id == record_id).update(event_id=incident.event_id)
 
 # =============================================================================
 class S3EventIReportModel(S3Model):
@@ -2492,7 +2439,7 @@ def event_incident_list_layout(list_id, item_id, resource, rfields, record,
     permit = current.auth.s3_has_permission
     table = current.db.event_incident
     if permit("update", table, record_id=record_id):
-        edit_btn = A(ICON("edit"),
+        edit_btn = A(I(" ", _class="icon icon-edit"),
                      _href=URL(c="event", f="incident",
                                args=[record_id, "update.popup"],
                                vars={"refresh": list_id,
@@ -2504,7 +2451,7 @@ def event_incident_list_layout(list_id, item_id, resource, rfields, record,
     else:
         edit_btn = ""
     if permit("delete", table, record_id=record_id):
-        delete_btn = A(ICON("delete"),
+        delete_btn = A(I(" ", _class="icon icon-trash"),
                        _class="dl-item-delete",
                        _title=current.response.s3.crud_strings.event_incident.label_delete_button,
                        )
@@ -2516,7 +2463,7 @@ def event_incident_list_layout(list_id, item_id, resource, rfields, record,
                    )
 
     # Render the item
-    item = DIV(DIV(ICON(icon),
+    item = DIV(DIV(I(_class="icon icon-%s" % icon),
                    SPAN(location, _class="location-title"),
                    SPAN(zero_hour, _class="date-title"),
                    edit_bar,
@@ -2604,7 +2551,7 @@ def event_resource_list_layout(list_id, item_id, resource, rfields, record):
             vars["(organisation)"] = organisation_id
         elif f == "location" and location_id:
             vars["(location)"] = location_id
-        edit_btn = A(ICON("edit"),
+        edit_btn = A(I(" ", _class="icon icon-edit"),
                      _href=URL(c="event", f="resource",
                                args=[record_id, "update.popup"],
                                vars=vars),
@@ -2614,7 +2561,7 @@ def event_resource_list_layout(list_id, item_id, resource, rfields, record):
     else:
         edit_btn = ""
     if permit("delete", table, record_id=record_id):
-        delete_btn = A(ICON("delete"),
+        delete_btn = A(I(" ", _class="icon icon-trash"),
                        _class="dl-item-delete",
                        )
     else:
@@ -2711,37 +2658,22 @@ def event_rheader(r):
             # Incident Controller
             tabs = [(T("Incident Details"), None)]
             append = tabs.append
-
-            # Impact tab
-            if settings.get_event_incident_impact_tab():
-                append((T("Impact"), "impact"))
-
-            # Tasks tab
             if settings.has_module("project"):
                 append((T("Tasks"), "task"))
-
-            # Staff tab
             if settings.has_module("hrm"):
                 STAFF = settings.get_hrm_staff_label()
                 append((STAFF, "human_resource"))
                 if current.auth.s3_has_permission("create", "event_human_resource"):
                      append((T("Assign %(staff)s") % dict(staff=STAFF), "assign"))
-
-            # Asset tab
             if settings.has_module("asset"):
                 append((T("Assets"), "asset"))
-
-            # Other tabs
             tabs.extend(((T("Facilities"), "site"), # Inc Shelters
                          (T("Organizations"), "organisation"),
                          (T("SitReps"), "sitrep"),
                          (T("Map Profile"), "config"),
                          ))
-
-            # Messaging tab
             if settings.has_module("msg"):
                 append((T("Send Notification"), "dispatch"))
-
             rheader_tabs = s3_rheader_tabs(r, tabs)
 
             record = r.record

@@ -248,10 +248,10 @@
                     case "totals":
                         switch(chartType) {
                             case "barchart":
-                                this._renderBarChart(chart, data.f, data.p);
+                                this._renderBarChart(chart, data.p);
                                 break;
                             default:
-                                this._renderLineChart(chart, data.f, data.p);
+                                this._renderLineChart(chart, data.p);
                                 break;
                         }
                         break;
@@ -290,7 +290,7 @@
          *
          * @todo: parameter description
          */
-        _renderBarChart: function(chart, facts, data) {
+        _renderBarChart: function(chart, data) {
 
             // @todo: needed?
             var defaultColor = 'silver';
@@ -300,7 +300,7 @@
                 var period = data[i];
                 items.push({
                     start: new Date(period.t[0]).getTime(),
-                    value: period.v[0] // @todo: render multiple series
+                    value: period.v
                 });
             }
 
@@ -384,37 +384,16 @@
          *
          * @todo: parameter description
          */
-        _renderLineChart: function(chart, facts, data) {
+        _renderLineChart: function(chart, data) {
 
             // Prepare the data items
-            var items = [],
-                keys = {},
-                key,
-                index = 0,
-                area = facts.length == 1,
-                i,
-                j;
-            for (i=0; i < facts.length; i++) {
-                key = facts[i][0];
-                if (keys.hasOwnProperty(key)) {
-                    index = keys[key] + 1;
-                }
-                keys[key] = index;
-                if (index) {
-                    key += ' [' + (index + 1) +']';
-                }
-                var series = {key: key, label: facts[i][0], area: area},
-                    period,
-                    values = [];
-                for (j=0; j < data.length; j++) {
-                    period = data[j];
-                    values.push({
-                        start: new Date(period.t[0]).getTime(),
-                        value: period.v[i]
-                    });
-                }
-                series.values = values;
-                items.push(series);
+            var items = [];
+            for (var i=0; i < data.length; i++) {
+                var period = data[i];
+                items.push({
+                    start: new Date(period.t[0]).getTime(),
+                    value: period.v
+                });
             }
 
             var currentChart = this.currentChart,
@@ -427,7 +406,11 @@
                 lineChart = currentChart.chart;
 
                 // Update the data
-                lineChartContainer.datum(items)
+                // @todo: use the fact label as key
+                lineChartContainer.datum([{key: "reportChart",
+                                           values: items,
+                                           area: true
+                                           }])
                                   .transition().duration(250)
                                   .call(lineChart);
             } else {
@@ -441,14 +424,13 @@
                                        .append('svg')
                                        .attr('class', 'nv');
 
-                // @todo: make legend use label
-                // @todo: tooltipContent renderer to use fact label
+                // @todo: tooltipContent renderer
                 lineChart = nv.models.lineChart()
                                      .x(function(d) { return d.start; })
                                      .y(function(d) { return d.value; })
                                      .margin({right: 50})
                                      .transitionDuration(250)
-                                     .showLegend(true)
+                                     .showLegend(false)
                                      .useInteractiveGuideline(true)
                                      .forceY([0, 1]);
 
@@ -465,7 +447,11 @@
                 nv.addGraph(function() {
 
                     // Render the chart
-                    lineChartContainer.datum(items)
+                    // @todo: use the fact label as key
+                    lineChartContainer.datum([{key: "reportChart",
+                                               values: items,
+                                               area: true
+                                               }])
                                       .transition().duration(500)
                                       .call(lineChart);
 

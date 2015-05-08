@@ -19,7 +19,7 @@ def index_alt():
     """
 
     # Just redirect to the list of Cases
-    s3_redirect_default(URL(f="case"))
+    redirect(URL(f="case"))
 
 # -----------------------------------------------------------------------------
 def case():
