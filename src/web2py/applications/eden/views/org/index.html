@@ -1,0 +1,22 @@
+{{extend "layout.html"}}
+<div id='home'>
+{{=H2(module_name)}}
+<p>
+{{=T("The Organization Registry keeps track of all the relief organizations working in the area.")}}
+{{if deployment_settings.has_module("project"):}}
+  {{=T("It captures not only the places where they are active, but also captures information on the range of projects they are providing in each area.")}}
+{{pass}}
+</p>
+<h3>{{=T("Organizations")}}:</h3>
+<ul>
+    <li><a href='{{=URL(f="organisation", args="create")}}'><b>{{=T("Create Organization")}}</b></a></li>
+    <li><a href='{{=URL(f="organisation")}}'><b>{{=T("List All")}}</b></a></li>
+    <li><a href='{{=URL(f="organisation", args="import")}}'><b>{{=T("Import")}}</b></a></li>
+</ul>
+<h3>{{=T("Offices")}}:</h3>
+<ul>
+    <li><a href='{{=URL(f="office", args="create")}}'><b>{{=T("Create Office")}}</b></a></li>
+    <li><a href='{{=URL(f="office")}}'><b>{{=T("List All")}}</b></a></li>
+    <li><a href='{{=URL(f="office", args="import")}}'><b>{{=T("Import")}}</b></a></li>
+</ul>
+</div>

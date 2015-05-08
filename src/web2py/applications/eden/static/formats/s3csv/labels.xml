@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<labels>
+
+    <!-- **********************************************************************
+
+         S3CSV labels: column and option label variants
+
+         This file is used by the ResolveColumnHeader and GetColumnValue
+         templates to find all acceptable variants of a column header or
+         column option by its standard label.
+
+         Make sure that there are no conflicting duplicates of labels for
+         different columns (duplicates for the same column will be
+         automatically resolved).
+
+         You can use the same syntax in the XML source (e.g. append to the
+         source tree) to add more variants.
+
+         General syntax:
+
+         <column name="StandardName">
+             <match>|StandardName|AlternativeName1|AlternativeName2|</match>
+             <label>AlternativeName1</label>
+             <label>AlternativeName2</label>
+             <option value="InternalValue" name="StandardLabel">
+                 <label>AlternativeOptionLabel1</label>
+                 <label>AlternativeOptionLabel2</label>
+             </option>
+         </column>
+
+         Example:
+
+         <column name="PersonGender">
+             <match>|PersonGender|Gender|Sex|</match>
+             <label>PersonGender</label>
+             <label>Gender</label>
+             <label>Sex</label>
+             <option value="1" name="female">
+                 <label>F</label>
+             </option>
+             <option value="2" name="male">
+                 <label>M</label>
+             </option>
+         </column>
+
+         The <match> element is required for columns which are used in
+         key generation (because xsl:key use-attribute can not contain
+         variable references, yet it can contain function calls).
+
+         To create such a key, use the following syntax:
+
+         <xsl:key name="examplekey"
+            match="row"
+            use="col[contains(
+                    document('../labels.xml')/labels/column[@name='StandardName']/match/text(),
+                    concat('|', @field, '|'))]"/>
+
+    *********************************************************************** -->
+
+    <column name="PersonGender">
+        <label>PersonGender</label>
+        <label>Gender</label>
+        <label>Sex</label>
+        <!--<label>Title</label>-->
+        <option value="2" name="female">
+            <label>F</label>
+            <label>f</label>
+            <label>Female</label>
+            <label>female</label>
+            <label>Mrs</label>
+            <label>Mrs.</label>
+            <label>Ms</label>
+            <label>Ms.</label>
+        </option>
+        <option value="3" name="male">
+            <label>M</label>
+            <label>m</label>
+            <label>Male</label>
+            <label>male</label>
+            <label>Mr</label>
+            <label>Mr.</label>
+        </option>
+        <option value="4" name="other">
+            <label>X</label>
+            <label>O</label>
+            <label>Other</label>
+            <label>other</label>
+            <label>Mx</label>
+            <label>Mx.</label>
+        </option>
+    </column>
+
+    <column name="HRMType">
+        <label>HRMType</label>
+        <label>PersonType</label>
+        <label>Type</label>
+        <option value="1" name="staff">
+            <label>Staff</label>
+            <label>staff</label>
+        </option>
+        <option value="2" name="volunteer">
+            <label>Volunteer</label>
+            <label>volunteer</label>
+            <label>vol</label>
+            <label>Vol</label>
+        </option>
+        <option value="3" name="member">
+            <label>Member</label>
+            <label>member</label>
+            <label>Normal Member</label>
+            <label>Life Member</label>
+            <label>Honorary Member</label>
+        </option>
+    </column>
+
+    <column name="JobTitle">
+        <!-- Special Element match for key generation -->
+        <match>|JobTitle|Job Title|JobRole|Job Role|Position|Volunteer Role|</match>
+        <label>Job Title</label>
+        <label>Job Role</label>
+        <label>Position</label>
+        <label>Volunteer Role</label>
+    </column>
+
+    <column name="StaffID">
+        <label>Staff ID</label>
+        <label>Volunteer ID</label>
+    </column>
+
+    <column name="MemberType">
+        <label>HRMType</label>
+        <label>PersonType</label>
+        <label>Type</label>
+        <option value="1" name="Normal Member">
+            <label>Member</label>
+            <label>member</label>
+            <label>Normal Member</label>
+        </option>
+        <option value="2" name="Life Member">
+            <label>Life Member</label>
+        </option>
+        <option value="3" name="Honorary Member">
+            <label>Honorary Member</label>
+        </option>
+    </column>
+
+    <column name="OfficeName">
+        <match>|Name|name|Office|office|</match>
+        <label>Name</label>
+        <label>name</label>
+        <label>Office</label>
+        <label>office</label>
+    </column>
+
+    <column name="Country">
+        <match>|Country|country|L0|ADM0_NAME|</match>
+        <label>country</label>
+        <!-- breaks countries.csv import
+        <label>ISO2</label>-->
+        <label>L0</label>
+        <label>ADM0_NAME</label>
+    </column>
+
+    <!-- For Campaign Response Summary (TERA) -->
+    <column name="Lat">
+        <!-- Special Element match for key generation -->
+        <match>|Lat|lat|LAT|LATITUDE|</match>
+        <label>Lat</label>
+        <label>lat</label>
+        <label>LAT</label>
+        <label>LATITUDE</label>
+    </column>
+
+    <!-- For Campaign Response Summary (TERA) -->
+    <column name="Lon">
+        <!-- Special Element match for key generation -->
+        <match>|Lon|Long|lon|long|LON|LONG|LONGITUDE|</match>
+        <label>Lon</label>
+        <label>Long</label>
+        <label>lon</label>
+        <label>long</label>
+        <label>LON</label>
+        <label>LONG</label>
+        <label>LONGITUDE</label>
+    </column>
+
+    <column name="HomeAddress">
+        <label>Home Address</label>
+        <label>Home Street Address</label>
+    </column>
+
+    <column name="Postcode">
+        <!-- Special Element match for key generation -->
+        <match>|Postcode|postcode|Zip|Zipcode|zipcode|</match>
+        <label>Postcode</label>
+        <label>postcode</label>
+        <label>Zip</label>
+        <label>Zipcode</label>
+        <label>zipcode</label>
+    </column>
+
+    <column name="Organisation">
+        <!-- Special Element match for key generation -->
+        <match>|Organisation|Organization|organisation|organization|</match>
+        <label>Organisation</label>
+        <label>Organization</label>
+        <label>organisation</label>
+        <label>organization</label>
+    </column>
+
+    <column name="OrgGroup">
+        <!-- Special Element match for key generation -->
+        <match>|Coalition|Network|OrgGroup</match>
+        <label>Coalition</label>
+        <label>Network</label>
+        <label>OrgGroup</label>
+    </column>
+
+    <!-- For Inventory -->
+    <column name="Units">
+        <label>Units</label>
+        <label>Unit of Measure</label>
+    </column>
+
+    <column name="Expiry">
+        <label>Expiry Date</label>
+        <label>Expires</label>
+        <label>Expiry</label>
+    </column>
+
+    <column name="TrackingNumber">
+        <label>Tracking Number</label>
+        <label>Tracking #</label>
+    </column>
+
+    <!-- For Campaign Response Summary (TERA) -->
+    <column name="Quantity">
+        <!-- Special Element match for key generation -->
+        <match>|Quantity|QUANTITY|</match>
+        <label>Quantity</label>
+        <label>QUANTITY</label>
+    </column>
+
+    <!-- For Campaign Response Summary (TERA) -->
+    <column name="Keyword">
+        <!-- Special Element match for key generation -->
+        <match>|Keyword|TEXT|</match>
+        <label>Keyword</label>
+        <label>TEXT</label>
+    </column>
+
+    <!-- For Campaign Response Summary (TERA) -->
+    <column name="Date">
+        <!-- Special Element match for key generation -->
+        <match>|Date|DATETIME|</match>
+        <label>Date</label>
+        <label>DATETIME</label>
+    </column>
+
+   <!-- ******************************************************************* -->
+
+</labels>
