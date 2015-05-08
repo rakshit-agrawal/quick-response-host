@@ -26,4 +26,4 @@ src/web2py/applications/*/languages/*.po
 src/web2py/applications/*/yaml/*
 data/*
 *outfile*
-
+*.*~
