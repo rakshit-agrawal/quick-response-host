@@ -32,10 +32,16 @@ def testpage():
     """ Dashboard """
     T = "test page text to be displayed"
 
-    table = s3db.hrm_human_resource
+    table = s3db.pr_person_details
+    table2 = s3db.hrm_human_resource
 
-    form = SQLFORM(table)
+    #fields = {}
+    #fields[f1] = table.site_contact
+    #fields[f2] = table2.
+    #form = SQLFORM(table)
+    form = SQLFORM.factory(table2,table, s3db.pr_pentity)
 
+    if form.proce
     return (dict(t=T, form=form))
 # ================
 
