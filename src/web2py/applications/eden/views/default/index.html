@@ -1,4 +1,5 @@
 {{extend "layout.html"}}
+
 <div id='home'>
 {{try:}}<h2 align='center'>{{=title}}</h2>{{except:}}{{pass}}
 {{=XML(item)}}
