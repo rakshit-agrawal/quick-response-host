@@ -1,30 +1,8 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <title>Bootstrap 101 Template</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- Bootstrap -->
-    <link href="/eden/static/styles/bootstrap/bootstrap.css" rel="stylesheet" media="screen">
-    <link href="/eden/static/styles/bootstrap-responsive.css" rel="stylesheet">
-
-  </head>
-  <body>
-    <div class="navbar">
-      <div class="navbar-inner">
-        <a class="brand" href="#">Quick Response Host</a>
-        <ul class="nav">
-          <li class="active"><a href="#">Volunteers</a></li>
-          <li><a href="#">Equipment</a></li>
-          <li><a href="#">Warehouses</a></li>
-        </ul>
+{{ include "quickresponse/qrhheader.html" }}
+    <div class="container-fluid">
+      <div class="col-md-4"></div>
+      <div class="col-md-4">
+        {{=form}}
       </div>
     </div>
-
-    <div class="span-4"></div>
-    <div class="span-4">
-      {{=form}}
-    </div>
-    <script src="http://code.jquery.com/jquery.js"></script>
-    <script src="/eden/static/scripts/bootstrap.js"></script>
-  </body>
-</html>
+{{ include "quickresponse/qrhfooter.html" }}

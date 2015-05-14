@@ -33,3 +33,7 @@ def volunteer():
     form = SQLFORM(table)
 
     return dict(form=form)
+
+def selectTask():
+    """ Task Selection Controller """
+    return dict()
