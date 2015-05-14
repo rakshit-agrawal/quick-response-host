@@ -24,6 +24,23 @@ def index():
         # Bypass home page & go direct to Volunteers Summary
         redirect(URL(f="volunteer", args=["summary"]))
 
+
+# =============================================================================
+
+## Example of a test page
+def testpage():
+    """ Dashboard """
+    T = "test page text to be displayed"
+
+    table = s3db.hrm_human_resource
+
+    form = SQLFORM(table)
+
+    return (dict(t=T, form=form))
+# ================
+
+
+
 # =============================================================================
 # People
 # =============================================================================
