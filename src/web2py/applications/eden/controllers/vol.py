@@ -41,7 +41,7 @@ def testpage():
     #form = SQLFORM(table)
     form = SQLFORM.factory(table2,table, s3db.pr_pentity)
 
-    if form.proce
+    #if form.proce
     return (dict(t=T, form=form))
 # ================
 

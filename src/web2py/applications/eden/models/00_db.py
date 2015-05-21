@@ -82,6 +82,7 @@ if not request.env.web2py_runtime_gae:
             db_location = db_string.split("@", 1)[1]
             raise(HTTP(503, "Cannot connect to %s Database: %s" % (db_type, db_location)))
 
+
 else:
     ## connect to Google BigTable (optional 'google:datastore://namespace')
     db = DAL('google:datastore+ndb')

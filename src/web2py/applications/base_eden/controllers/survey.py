@@ -1,0 +1,1181 @@
+# -*- coding: utf-8 -*-
+
+"""
+    survey - Assessment Data Analysis Tool
+
+    For more details see the blueprint at:
+    http://eden.sahanafoundation.org/wiki/BluePrint/SurveyTool/ADAT
+
+    @todo: open template from the dataTables into the section tab not update
+    @todo: in the pages that add a link to a template make the combobox display the label not the numbers
+"""
+
+module = request.controller
+resourcename = request.function
+
+if not settings.has_module(module):
+    raise HTTP(404, body="Module disabled: %s" % module)
+
+try:
+    from cStringIO import StringIO    # Faster, where available
+except:
+    from StringIO import StringIO
+
+from gluon.contenttype import contenttype
+import gluon.contrib.pyrtf as pyrtf
+
+from s3survey import S3AnalysisPriority, \
+                     survey_question_type, \
+                     survey_analysis_type, \
+                     getMatrix, \
+                     DEBUG, \
+                     LayoutBlocks, \
+                     DataMatrix, MatrixElement, \
+                     S3QuestionTypeOptionWidget, \
+                     survey_T
+
+# -----------------------------------------------------------------------------
+def index():
+    """ Module's Home Page """
+
+    module_name = settings.modules[module].name_nice
+    response.title = module_name
+    return dict(module_name=module_name)
+
+# -----------------------------------------------------------------------------
+def create():
+    """
+        Enter a new assessment.
+        - provides a simpler URL to access from mobile devices...
+    """
+
+    redirect(URL(f="newAssessment.iframe",
+                 vars={"viewing": "survey_series.%s" % request.args[0]}))
+
+# -----------------------------------------------------------------------------
+def template():
+    """ RESTful CRUD controller """
+
+    # Load Model
+    #table = s3db.survey_template
+
+    def prep(r):
+        if r.component:
+            if r.component_name == "translate":
+                table = s3db.survey_translate
+                if r.component_id == None:
+                    # list existing translations and allow the addition of a new translation
+                    table.file.readable = False
+                    table.file.writable = False
+                else:
+                    # edit the selected translation
+                    table.language.writable = False
+                    table.code.writable = False
+                # remove CRUD generated buttons in the tabs
+                s3db.configure("survey_translate",
+                               deletable=False)
+        else:
+            table = r.table
+            s3_action_buttons(r)
+            # Status of Pending
+            rows = db(table.status == 1).select(table.id)
+            try:
+                s3.actions[1]["restrict"].extend(str(row.id) for row in rows)
+            except KeyError: # the restrict key doesn't exist
+                s3.actions[1]["restrict"] = [str(row.id) for row in rows]
+            except IndexError: # the delete buttons doesn't exist
+                pass
+            # Add some highlighting to the rows
+            # Status of Pending
+            s3.dataTableStyleAlert = [str(row.id) for row in rows]
+            # Status of closed
+            rows = db(table.status == 3).select(table.id)
+            s3.dataTableStyleDisabled = [str(row.id) for row in rows]
+            s3.dataTableStyleWarning = [str(row.id) for row in rows]
+            # Status of Master
+            rows = db(table.status == 4).select(table.id)
+            s3.dataTableStyleWarning.extend(str(row.id) for row in rows)
+            s3db.configure("survey_template",
+                           orderby = "survey_template.status",
+                           create_next = URL(c="survey", f="template"),
+                           update_next = URL(c="survey", f="template"),
+                           )
+        return True
+    s3.prep = prep
+
+    # Post-processor
+    def postp(r, output):
+        if r.component:
+            template_id = r.id
+            if r.component_name == "translate":
+                s3_action_buttons(r)
+                s3.actions.append(dict(label=str(T("Download")),
+                                       _class="action-btn",
+                                       url=r.url(method = "translate_download",
+                                                 component = "translate",
+                                                 component_id = "[id]",
+                                                 representation = "xls",
+                                                 )
+                                       ),
+                                  )
+                s3.actions.append(
+                           dict(label=str(T("Upload")),
+                                _class="action-btn",
+                                url=URL(c=module,
+                                        f="template",
+                                        args=[template_id, "translate", "[id]"])
+                               ),
+                          )
+            #elif r.component_name == "section":
+            #    # Add the section select widget to the form
+            #    # undefined
+            #    sectionSelect = s3.survey_section_select_widget(template_id)
+            #    output.update(form = sectionSelect)
+
+        # Add a button to show what the questionnaire looks like
+        #s3_action_buttons(r)
+        #s3.actions = s3.actions + [
+        #                       dict(label=str(T("Display")),
+        #                            _class="action-btn",
+        #                            url=URL(c=module,
+        #                                    f="templateRead",
+        #                                    args=["[id]"])
+        #                           ),
+        #                      ]
+
+        return output
+    s3.postp = postp
+
+    if request.ajax:
+        post = request.post_vars
+        action = post.get("action")
+        template_id = post.get("parent_id")
+        section_id = post.get("section_id")
+        section_text = post.get("section_text")
+        if action == "section" and template_id != None:
+            id = db.survey_section.insert(name=section_text,
+                                          template_id=template_id,
+                                          cloned_section_id=section_id)
+            if id is None:
+                print "Failed to insert record"
+            return
+
+    # Remove CRUD generated buttons in the tabs
+    s3db.configure("survey_template",
+                   listadd=False,
+                   #deletable=False,
+                   )
+
+    output = s3_rest_controller(rheader=s3db.survey_template_rheader)
+    return output
+
+# -----------------------------------------------------------------------------
+def templateRead():
+    """
+    """
+
+    if len(get_vars) > 0:
+        dummy, template_id = get_vars.viewing.split(".")
+    else:
+        template_id = request.args[0]
+
+    def postp(r, output):
+        if r.interactive:
+            template_id = r.id
+            form = s3db.survey_buildQuestionnaireFromTemplate(template_id)
+            output["items"] = None
+            output["form"] = None
+            output["item"] = form
+            output["title"] = s3.crud_strings["survey_template"].title_question_details
+            return output
+    s3.postp = postp
+
+    # remove CRUD generated buttons in the tabs
+    s3db.configure("survey_template",
+                   listadd=False,
+                   editable=False,
+                   deletable=False,
+                   )
+
+    r = s3_request("survey", "template", args=[template_id])
+    output  = r(method = "read", rheader=s3db.survey_template_rheader)
+    return output
+
+# -----------------------------------------------------------------------------
+def templateSummary():
+    """
+    """
+
+    # Load Model
+    tablename = "survey_template"
+    s3db[tablename]
+    s3db.survey_complete
+    crud_strings = s3.crud_strings[tablename]
+
+    def postp(r, output):
+        if r.interactive:
+            if len(get_vars) > 0:
+                dummy, template_id = get_vars.viewing.split(".")
+            else:
+                template_id = r.id
+            form = s3db.survey_build_template_summary(template_id)
+            output["items"] = form
+            output["sortby"] = [[0, "asc"]]
+            output["title"] = crud_strings.title_analysis_summary
+            output["subtitle"] = crud_strings.subtitle_analysis_summary
+        return output
+    s3.postp = postp
+
+    # remove CRUD generated buttons in the tabs
+    s3db.configure(tablename,
+                   listadd=False,
+                   deletable=False,
+                   )
+
+    output = s3_rest_controller("survey", "template",
+                                method = "list",
+                                rheader=s3.survey_template_rheader
+                                )
+    s3.actions = None
+    return output
+
+# -----------------------------------------------------------------------------
+def series():
+    """ RESTful CRUD controller """
+
+    # Load Model
+    table = s3db.survey_series
+    s3db.survey_answerlist_dataTable_pre()
+
+    def prep(r):
+        if r.interactive:
+            if r.method == "create":
+                ttable = s3db.survey_template
+                if not db(ttable.deleted == False).select(ttable.id,
+                                                          limitby=(0, 1)
+                                                          ):
+                    session.warning = T("You need to create a template before you can create a series")
+                    redirect(URL(c="survey", f="template", args=[], vars={}))
+            if r.id and (r.method == "update"):
+                table.template_id.writable = False
+        return True
+    s3.prep = prep
+
+    def postp(r, output):
+        if request.ajax == True and r.method == "read":
+            return output["item"]
+        if not r.component:
+            # Set the minimum end_date to the same as the start_date
+            s3.jquery_ready.append(
+'''S3.start_end_date('survey_series_start_date','survey_series_end_date')''')
+            s3db.survey_serieslist_dataTable_post(r)
+
+        elif r.component_name == "complete":
+            if r.method == "update":
+                if r.http == "GET":
+                    form = s3db.survey_buildQuestionnaireFromSeries(r.id,
+                                                                    r.component_id)
+                    output["form"] = form
+                elif r.http == "POST":
+                    if len(request.post_vars) > 0:
+                        id = s3db.survey_save_answers_for_series(r.id,
+                                                                 r.component_id, # Update
+                                                                 request.post_vars)
+                        response.confirmation = \
+                            s3.crud_strings["survey_complete"].msg_record_modified
+            else:
+                s3db.survey_answerlist_dataTable_post(r)
+        return output
+    s3.postp = postp
+
+    # Remove CRUD generated buttons in the tabs
+    s3db.configure("survey_series",
+                   deletable = False,
+                   )
+    s3db.configure("survey_complete",
+                   listadd = False,
+                   deletable = False,
+                   )
+
+    output = s3_rest_controller(rheader=s3db.survey_series_rheader)
+    return output
+
+# -----------------------------------------------------------------------------
+def series_export_formatted():
+    """
+        Download a Spreadsheet which can be filled-in offline & uploaded
+        @ToDo: rewrite as S3Method handler
+    """
+
+    try:
+        series_id = request.args[0]
+    except:
+        output = s3_rest_controller(module, "series",
+                                    rheader = s3db.survey_series_rheader)
+        return output
+
+    # Load Model
+    table = s3db.survey_series
+    s3db.table("survey_complete")
+
+    vars = request.post_vars
+    series = db(table.id == series_id).select(table.name,
+                                              table.logo,
+                                              limitby = (0, 1)
+                                              ).first()
+    if not series.logo:
+        logo = None
+    else:
+        if "Export_Spreadsheet" in vars:
+            ext = "bmp"
+        else:
+            ext = "png"
+        logo = os.path.join(request.folder,
+                            "uploads",
+                            "survey",
+                            "logo",
+                            "%s.%s" % (series.logo, ext)
+                            )
+        if not os.path.exists(logo) or not os.path.isfile(logo):
+            logo = None
+
+    # Get the translation dictionary
+    langDict = dict()
+    lang = request.post_vars.get("translationLanguage", None)
+    if lang:
+        if lang == "Default":
+            langDict = dict()
+        else:
+            try:
+                from gluon.languages import read_dict
+                lang_fileName = "applications/%s/uploads/survey/translations/%s.py" % \
+                                    (appname, lang)
+                langDict = read_dict(lang_fileName)
+            except:
+                langDict = dict()
+
+    if "Export_Spreadsheet" in vars:
+        (matrix, matrixAnswers) = series_prepare_matrix(series_id,
+                                                        series,
+                                                        logo,
+                                                        langDict,
+                                                        justified = True
+                                                        )
+        output = series_export_spreadsheet(matrix,
+                                           matrixAnswers,
+                                           logo,
+                                           )
+        filename = "%s.xls" % series.name
+        contentType = ".xls"
+
+    elif "Export_Word" in vars:
+        template = s3db.survey_getTemplateFromSeries(series_id)
+        template_id = template.id
+        title = "%s (%s)" % (series.name, template.name)
+        title = survey_T(title, langDict)
+        widgetList = s3db.survey_getAllWidgetsForTemplate(template_id)
+        output = series_export_word(widgetList, langDict, title, logo)
+        filename = "%s.rtf" % series.name
+        contentType = ".rtf"
+
+    else:
+        output = s3_rest_controller(module, "series",
+                                    rheader = s3db.survey_series_rheader)
+        return output
+
+    output.seek(0)
+    response.headers["Content-Type"] = contenttype(contentType)
+    response.headers["Content-disposition"] = "attachment; filename=\"%s\"" % filename
+    return output.read()
+
+# -----------------------------------------------------------------------------
+def series_prepare_matrix(series_id, series, logo, langDict, justified=False):
+    """
+        Helper function for series_export_formatted()
+    """
+
+    ######################################################################
+    #
+    # Get the data
+    # ============
+    # * The sections within the template
+    # * The layout rules for each question
+    ######################################################################
+    # Check that the series_id has been passed in
+    try:
+        series_id = request.args[0]
+    except:
+        output = s3_rest_controller(module, "series",
+                                    rheader = s3db.survey_series_rheader)
+        return output
+
+    template = s3db.survey_getTemplateFromSeries(series_id)
+    template_id = template.id
+    sectionList = s3db.survey_getAllSectionsForSeries(series_id)
+    title = "%s (%s)" % (series.name, template.name)
+    title = survey_T(title, langDict)
+    layout = []
+    survey_getQstnLayoutRules = s3db.survey_getQstnLayoutRules
+    for section in sectionList:
+        sectionName = survey_T(section["name"], langDict)
+        rules = survey_getQstnLayoutRules(template_id,
+                                          section["section_id"])
+        layoutRules = [sectionName, rules]
+        layout.append(layoutRules)
+    widgetList = s3db.survey_getAllWidgetsForTemplate(template_id)
+    layoutBlocks = LayoutBlocks()
+
+    ######################################################################
+    #
+    # Store the questions into a matrix based on the layout and the space
+    # required for each question - for example an option question might
+    # need one row for each possible option, and if this is in a layout
+    # then the position needs to be recorded carefully...
+    #
+    ######################################################################
+    preliminaryMatrix = getMatrix(title,
+                                  logo,
+                                  layout,
+                                  widgetList,
+                                  False,
+                                  langDict,
+                                  showSectionLabels = False,
+                                  layoutBlocks = layoutBlocks
+                                  )
+    if not justified:
+        return preliminaryMatrix
+
+    ######################################################################
+    # Align the questions so that each row takes up the same space.
+    # This is done by storing resize and margin instructions with
+    # each widget that is being printed
+    ######################################################################
+    layoutBlocks.align()
+    ######################################################################
+    # Now rebuild the matrix with the spacing for each widget set up so
+    # that the document will be fully justified
+    ######################################################################
+    layoutBlocks = LayoutBlocks()
+    (matrix1, matrix2) = getMatrix(title,
+                                   logo,
+                                   layout,
+                                   widgetList,
+                                   True,
+                                   langDict,
+                                   showSectionLabels = False,
+                                   )
+    return (matrix1, matrix2)
+
+# -----------------------------------------------------------------------------
+def series_export_word(widgetList, langDict, title, logo):
+    """
+        Export a Series in RTF Format
+        @ToDo: rewrite as S3Method handler
+    """
+
+    output  = StringIO()
+    doc     = pyrtf.Document(default_language=pyrtf.Languages.EnglishUK)
+    section = pyrtf.Section()
+    ss      = doc.StyleSheet
+    ps = ss.ParagraphStyles.Normal.Copy()
+    ps.SetName("NormalGrey")
+    ps.SetShadingPropertySet(pyrtf.ShadingPropertySet(pattern=1,
+                                                      background=pyrtf.Colour("grey light", 224, 224, 224)))
+    ss.ParagraphStyles.append(ps)
+    ps = ss.ParagraphStyles.Normal.Copy()
+    ps.SetName("NormalCentre")
+    ps.SetParagraphPropertySet(pyrtf.ParagraphPropertySet(alignment=3))
+    ss.ParagraphStyles.append(ps)
+
+    doc.Sections.append(section)
+    heading = pyrtf.Paragraph(ss.ParagraphStyles.Heading1)
+
+    if logo:
+        image = pyrtf.Image(logo)
+        heading.append(image)
+    heading.append(title)
+    section.append(heading)
+
+    col = [2800, 6500]
+    table = pyrtf.Table(*col)
+    AddRow = table.AddRow
+    sortedwidgetList = sorted(widgetList.values(),
+                              key=lambda widget: widget.question.posn)
+    for widget in sortedwidgetList:
+        line = widget.writeToRTF(ss, langDict)
+        try:
+            AddRow(*line)
+        except:
+            if DEBUG:
+                raise
+            pass
+
+    section.append(table)
+    renderer = pyrtf.Renderer()
+    renderer.Write(doc, output)
+    return output
+
+# -----------------------------------------------------------------------------
+def series_export_spreadsheet(matrix, matrixAnswers, logo):
+    """
+        Now take the matrix data type and generate a spreadsheet from it
+    """
+
+    try:
+        import xlwt
+    except ImportError:
+        response.error = T("xlwt not installed, so cannot export as a Spreadsheet")
+        output = s3_rest_controller(module, "survey_series",
+                                    rheader=s3db.survey_series_rheader)
+        return output
+
+    import math
+
+    # -------------------------------------------------------------------------
+    def wrapText(sheet, cell, style):
+        row = cell.row
+        col = cell.col
+        try:
+            text = unicode(cell.text)
+        except:
+            text = cell.text
+        width = 16
+        # Wrap text and calculate the row width and height
+        characters_in_cell = float(width-2)
+        twips_per_row = 255 #default row height for 10 point font
+        if cell.merged():
+            try:
+                sheet.write_merge(cell.row,
+                                  cell.row + cell.mergeV,
+                                  cell.col,
+                                  cell.col + cell.mergeH,
+                                  text,
+                                  style
+                                  )
+            except Exception as msg:
+                log = current.log
+                log.error(msg)
+                log.debug("row: %s + vert: %s, col: %s + horiz %s" % \
+                          (cell.row, cell.mergeV, cell.col, cell.mergeH))
+                posn = "%s,%s" % (cell.row, cell.col)
+                if matrix.matrix[posn]:
+                    log.debug(matrix.matrix[posn])
+            rows = math.ceil((len(text) / characters_in_cell) / (1 + cell.mergeH))
+        else:
+            sheet.write(cell.row,
+                        cell.col,
+                        text,
+                        style
+                        )
+            rows = math.ceil(len(text) / characters_in_cell)
+        new_row_height = int(rows * twips_per_row)
+        new_col_width = width * COL_WIDTH_MULTIPLIER
+        if sheet.row(row).height < new_row_height:
+            sheet.row(row).height = new_row_height
+        if sheet.col(col).width < new_col_width:
+            sheet.col(col).width = new_col_width
+
+    # -------------------------------------------------------------------------
+    def mergeStyles(listTemplate, styleList):
+        """
+            Take a list of styles and return a single style object with
+            all the differences from a newly created object added to the
+            resultant style.
+        """
+        if len(styleList) == 0:
+            finalStyle = xlwt.XFStyle()
+        elif len(styleList) == 1:
+            finalStyle = listTemplate[styleList[0]]
+        else:
+            zeroStyle = xlwt.XFStyle()
+            finalStyle = xlwt.XFStyle()
+            for i in range(0, len(styleList)):
+                finalStyle = mergeObjectDiff(finalStyle,
+                                             listTemplate[styleList[i]],
+                                             zeroStyle)
+        return finalStyle
+
+    # -------------------------------------------------------------------------
+    def mergeObjectDiff(baseObj, newObj, zeroObj):
+        """
+            function to copy all the elements in newObj that are different from
+            the zeroObj and place them in the baseObj
+        """
+
+        elementList = newObj.__dict__
+        for (element, value) in elementList.items():
+            try:
+                baseObj.__dict__[element] = mergeObjectDiff(baseObj.__dict__[element],
+                                                            value,
+                                                            zeroObj.__dict__[element])
+            except:
+                if zeroObj.__dict__[element] != value:
+                    baseObj.__dict__[element] = value
+        return baseObj
+
+    COL_WIDTH_MULTIPLIER = 240
+    book = xlwt.Workbook(encoding="utf-8")
+    output = StringIO()
+
+    protection = xlwt.Protection()
+    protection.cell_locked = 1
+    noProtection = xlwt.Protection()
+    noProtection.cell_locked = 0
+
+    borders = xlwt.Borders()
+    borders.left = xlwt.Borders.DOTTED
+    borders.right = xlwt.Borders.DOTTED
+    borders.top = xlwt.Borders.DOTTED
+    borders.bottom = xlwt.Borders.DOTTED
+
+    borderT1 = xlwt.Borders()
+    borderT1.top = xlwt.Borders.THIN
+    borderT2 = xlwt.Borders()
+    borderT2.top = xlwt.Borders.MEDIUM
+
+    borderL1 = xlwt.Borders()
+    borderL1.left = xlwt.Borders.THIN
+    borderL2 = xlwt.Borders()
+    borderL2.left = xlwt.Borders.MEDIUM
+
+    borderR1 = xlwt.Borders()
+    borderR1.right = xlwt.Borders.THIN
+    borderR2 = xlwt.Borders()
+    borderR2.right = xlwt.Borders.MEDIUM
+
+    borderB1 = xlwt.Borders()
+    borderB1.bottom = xlwt.Borders.THIN
+    borderB2 = xlwt.Borders()
+    borderB2.bottom = xlwt.Borders.MEDIUM
+
+    alignBase = xlwt.Alignment()
+    alignBase.horz = xlwt.Alignment.HORZ_LEFT
+    alignBase.vert = xlwt.Alignment.VERT_TOP
+
+    alignWrap = xlwt.Alignment()
+    alignWrap.horz = xlwt.Alignment.HORZ_LEFT
+    alignWrap.vert = xlwt.Alignment.VERT_TOP
+    alignWrap.wrap = xlwt.Alignment.WRAP_AT_RIGHT
+
+    shadedFill = xlwt.Pattern()
+    shadedFill.pattern = xlwt.Pattern.SOLID_PATTERN
+    shadedFill.pattern_fore_colour = 0x16 # 25% Grey
+    shadedFill.pattern_back_colour = 0x08 # Black
+
+    headingFill = xlwt.Pattern()
+    headingFill.pattern = xlwt.Pattern.SOLID_PATTERN
+    headingFill.pattern_fore_colour = 0x1F # ice_blue
+    headingFill.pattern_back_colour = 0x08 # Black
+
+    styleTitle =  xlwt.XFStyle()
+    styleTitle.font.height = 0x0140 # 320 twips, 16 points
+    styleTitle.font.bold = True
+    styleTitle.alignment = alignBase
+    styleHeader = xlwt.XFStyle()
+    styleHeader.font.height = 0x00F0 # 240 twips, 12 points
+    styleHeader.font.bold = True
+    styleHeader.alignment = alignBase
+    styleSubHeader = xlwt.XFStyle()
+    styleSubHeader.font.bold = True
+    styleSubHeader.alignment = alignWrap
+    styleSectionHeading = xlwt.XFStyle()
+    styleSectionHeading.font.bold = True
+    styleSectionHeading.alignment = alignWrap
+    styleSectionHeading.pattern = headingFill
+    styleHint = xlwt.XFStyle()
+    styleHint.protection = protection
+    styleHint.font.height = 160 # 160 twips, 8 points
+    styleHint.font.italic = True
+    styleHint.alignment = alignWrap
+    styleText = xlwt.XFStyle()
+    styleText.protection = protection
+    styleText.alignment = alignWrap
+    styleInstructions = xlwt.XFStyle()
+    styleInstructions.font.height = 0x00B4 # 180 twips, 9 points
+    styleInstructions.font.italic = True
+    styleInstructions.protection = protection
+    styleInstructions.alignment = alignWrap
+    styleBox = xlwt.XFStyle()
+    styleBox.borders = borders
+    styleBox.protection = noProtection
+    styleInput = xlwt.XFStyle()
+    styleInput.borders = borders
+    styleInput.protection = noProtection
+    styleInput.pattern = shadedFill
+    boxL1 = xlwt.XFStyle()
+    boxL1.borders = borderL1
+    boxL2 = xlwt.XFStyle()
+    boxL2.borders = borderL2
+    boxT1 = xlwt.XFStyle()
+    boxT1.borders = borderT1
+    boxT2 = xlwt.XFStyle()
+    boxT2.borders = borderT2
+    boxR1 = xlwt.XFStyle()
+    boxR1.borders = borderR1
+    boxR2 = xlwt.XFStyle()
+    boxR2.borders = borderR2
+    boxB1 = xlwt.XFStyle()
+    boxB1.borders = borderB1
+    boxB2 = xlwt.XFStyle()
+    boxB2.borders = borderB2
+    styleList = {}
+    styleList["styleTitle"] = styleTitle
+    styleList["styleHeader"] = styleHeader
+    styleList["styleSubHeader"] = styleSubHeader
+    styleList["styleSectionHeading"] = styleSectionHeading
+    styleList["styleHint"] = styleHint
+    styleList["styleText"] = styleText
+    styleList["styleInstructions"] = styleInstructions
+    styleList["styleInput"] = styleInput
+    styleList["boxL1"] = boxL1
+    styleList["boxL2"] = boxL2
+    styleList["boxT1"] = boxT1
+    styleList["boxT2"] = boxT2
+    styleList["boxR1"] = boxR1
+    styleList["boxR2"] = boxR2
+    styleList["boxB1"] = boxB1
+    styleList["boxB2"] = boxB2
+
+    sheet1 = book.add_sheet(T("Assessment"))
+    sheetA = book.add_sheet(T("Metadata"))
+    maxCol = 0
+    for cell in matrix.matrix.values():
+        if cell.col + cell.mergeH > 255:
+            current.log.warning("Cell (%s,%s) - (%s,%s) ignored" % \
+                (cell.col, cell.row, cell.col + cell.mergeH, cell.row + cell.mergeV))
+            continue
+        if cell.col + cell.mergeH > maxCol:
+            maxCol = cell.col + cell.mergeH
+        if cell.joined():
+            continue
+        style = mergeStyles(styleList, cell.styleList)
+        if (style.alignment.wrap == style.alignment.WRAP_AT_RIGHT):
+            # get all the styles from the joined cells
+            # and merge these styles in.
+            joinedStyles = matrix.joinedElementStyles(cell)
+            joinedStyle =  mergeStyles(styleList, joinedStyles)
+            try:
+                wrapText(sheet1, cell, joinedStyle)
+            except:
+                pass
+        else:
+            if cell.merged():
+                # get all the styles from the joined cells
+                # and merge these styles in.
+                joinedStyles = matrix.joinedElementStyles(cell)
+                joinedStyle =  mergeStyles(styleList, joinedStyles)
+                try:
+                    sheet1.write_merge(cell.row,
+                                       cell.row + cell.mergeV,
+                                       cell.col,
+                                       cell.col + cell.mergeH,
+                                       unicode(cell.text),
+                                       joinedStyle
+                                       )
+                except Exception as msg:
+                    log = current.log
+                    log.error(msg)
+                    log.debug("row: %s + vert: %s, col: %s + horiz %s" % \
+                              (cell.row, cell.mergeV, cell.col, cell.mergeH))
+                    posn = "%s,%s" % (cell.row, cell.col)
+                    if matrix.matrix[posn]:
+                        log.debug(matrix.matrix[posn])
+            else:
+                sheet1.write(cell.row,
+                             cell.col,
+                             unicode(cell.text),
+                             style
+                             )
+    cellWidth = 480 # approximately 2 characters
+    if maxCol > 255:
+        maxCol = 255
+    for col in range(maxCol + 1):
+        sheet1.col(col).width = cellWidth
+
+    sheetA.write(0, 0, "Question Code")
+    sheetA.write(0, 1, "Response Count")
+    sheetA.write(0, 2, "Values")
+    sheetA.write(0, 3, "Cell Address")
+    for cell in matrixAnswers.matrix.values():
+        style = mergeStyles(styleList, cell.styleList)
+        sheetA.write(cell.row,
+                     cell.col,
+                     unicode(cell.text),
+                     style
+                     )
+
+    if logo != None:
+        sheet1.insert_bitmap(logo, 0, 0)
+
+    sheet1.protect = True
+    sheetA.protect = True
+    for i in range(26):
+        sheetA.col(i).width = 0
+    sheetA.write(0,
+                 26,
+                 unicode(T("Please do not remove this sheet")),
+                 styleHeader
+                 )
+    sheetA.col(26).width = 12000
+    book.save(output)
+    return output
+
+# -----------------------------------------------------------------------------
+def completed_chart():
+    """
+        Allows the user to display all the data from the selected question
+        in a simple chart. If the data is numeric then a histogram will be
+        drawn if it is an option type then a pie chart, although the type of
+        chart drawn is managed by the analysis widget.
+    """
+
+    series_id = get_vars.get("series_id")
+    if not series_id:
+        return "Programming Error: Series ID missing"
+
+    question_id = get_vars.get("question_id")
+    if not question_id:
+        return "Programming Error: Question ID missing"
+
+    q_type = get_vars.get("type")
+    if not q_type:
+        return "Programming Error: Question Type missing"
+
+    getAnswers = s3db.survey_getAllAnswersForQuestionInSeries
+    answers = getAnswers(question_id, series_id)
+    analysisTool = survey_analysis_type[q_type](question_id, answers)
+    qstnName = analysisTool.qstnWidget.question.name
+    image = analysisTool.drawChart(series_id, output="png")
+    return image
+
+# -----------------------------------------------------------------------------
+def section():
+    """
+        RESTful CRUD controller
+        - unused
+    """
+
+    # Load Model
+    #table = s3db.survey_section
+
+    def prep(r):
+        s3db.configure(r.tablename,
+                       deletable = False,
+                       orderby = "%s.posn" % r.tablename,
+                       )
+        return True
+    s3.prep = prep
+
+     # Post-processor
+    def postp(r, output):
+        """ Add the section select widget to the form """
+        try:
+            template_id = int(request.args[0])
+        except:
+            template_id = None
+        # Undefined?
+        sectionSelect = s3.survey_section_select_widget(template_id)
+        output["sectionSelect"] = sectionSelect
+        return output
+    #s3.postp = postp
+
+    output = s3_rest_controller(# Undefined
+                                #rheader=s3db.survey_section_rheader
+                                )
+    return output
+
+# -----------------------------------------------------------------------------
+def question():
+    """ RESTful CRUD controller """
+
+    def prep(r):
+        s3db.configure(r.tablename,
+                       orderby = r.tablename + ".posn",
+                       )
+        return True
+    s3.prep = prep
+
+    output = s3_rest_controller(# Undefined
+                                #rheader=s3db.survey_section_rheader
+                                )
+    return output
+
+# -----------------------------------------------------------------------------
+def question_list():
+    """ RESTful CRUD controller """
+
+    output = s3_rest_controller()
+    return output
+
+# -----------------------------------------------------------------------------
+def formatter():
+    """ RESTful CRUD controller """
+
+    output = s3_rest_controller()
+    return output
+
+# -----------------------------------------------------------------------------
+def question_metadata():
+    """ RESTful CRUD controller """
+
+    output = s3_rest_controller()
+    return output
+
+# -----------------------------------------------------------------------------
+def newAssessment():
+    """
+        RESTful CRUD controller to create a new 'complete' survey
+        - although the created form is a fully custom one
+    """
+
+    # Load Model
+    table = s3db.survey_complete
+    s3db.table("survey_series")
+
+    def prep(r):
+        if r.interactive:
+            viewing = get_vars.get("viewing", None)
+            if viewing:
+                dummy, series_id = viewing.split(".")
+            else:
+                series_id = get_vars.get("series", None)
+
+            if not series_id:
+                series_id = r.id
+            if series_id is None:
+                # The URL is bad, without a series id we're lost so list all series
+                redirect(URL(c="survey", f="series", args=[], vars={}))
+            if len(request.post_vars) > 0:
+                id = s3db.survey_save_answers_for_series(series_id,
+                                                         None, # Insert
+                                                         request.post_vars)
+                response.confirmation = \
+                    s3.crud_strings["survey_complete"].msg_record_created
+            r.method = "create"
+        return True
+    s3.prep = prep
+
+    def postp(r, output):
+        if r.interactive:
+            # Not sure why we need to repeat this & can't do it outside the prep/postp
+            viewing = get_vars.get("viewing", None)
+            if viewing:
+                dummy, series_id = viewing.split(".")
+            else:
+                series_id = get_vars.get("series", None)
+
+            if not series_id:
+                series_id = r.id
+            if output["form"] is None:
+                # The user is not authorised to create so switch to read
+                redirect(URL(c="survey", f="series",
+                             args=[series_id, "read"],
+                             vars={}))
+            # This is a bespoke form which confuses CRUD, which displays an
+            # error "Invalid form (re-opened in another window?)"
+            # So so long as we don't have an error in the form we can
+            # delete this error.
+            elif response.error and not output["form"]["error"]:
+                response.error = None
+            s3db.survey_answerlist_dataTable_post(r)
+            form = s3db.survey_buildQuestionnaireFromSeries(series_id, None)
+            urlimport = URL(c=module, f="complete", args=["import"],
+                            vars={"viewing":"%s.%s" % ("survey_series", series_id),
+                                  "single_pass":True}
+                            )
+            buttons = DIV(A(T("Upload Completed Assessment Form"),
+                            _href=urlimport,
+                            _id="Excel-import",
+                            _class="action-btn"
+                            ),
+                          )
+            output["subtitle"] = buttons
+            output["form"] = form
+        return output
+    s3.postp = postp
+
+    output = s3_rest_controller(module, "complete",
+                                method = "create",
+                                rheader = s3db.survey_series_rheader
+                                )
+    return output
+
+# -----------------------------------------------------------------------------
+def complete():
+    """ RESTful CRUD controller """
+
+    # Load Model
+    table = s3db.survey_complete
+    stable = s3db.survey_series
+    s3db.survey_answerlist_dataTable_pre()
+
+    series_id = None
+    try:
+        viewing = get_vars.get("viewing", None)
+        if viewing:
+            dummy, series_id = viewing.split(".")
+            series = db(stable.id == series_id).select(stable.name,
+                                                       limitby=(0, 1)
+                                                       ).first()
+            if series:
+                series_name = series.name
+            else:
+                series_name = ""
+        if series_name != "":
+            csv_extra_fields = [dict(label="Series", value=series_name)]
+        else:
+            csv_extra_fields = []
+    except:
+        csv_extra_fields = []
+
+    def postp(r, output):
+        if r.method == "import":
+            pass # don't want the import dataTable to be modified
+        else:
+            s3db.survey_answerlist_dataTable_post(r)
+        return output
+    s3.postp = postp
+
+    def import_xls(uploadFile):
+        """
+            Import Assessment Spreadsheet
+        """
+
+        if series_id is None:
+            response.error = T("Series details missing")
+            return
+        openFile = StringIO()
+        try:
+            import xlrd
+            from xlwt.Utils import cell_to_rowcol2
+        except ImportError:
+            current.log.error("ERROR: xlrd & xlwt modules are needed for importing spreadsheets")
+            return None
+        workbook = xlrd.open_workbook(file_contents=uploadFile)
+        try:
+            sheetR = workbook.sheet_by_name("Assessment")
+            sheetM = workbook.sheet_by_name("Metadata")
+        except:
+            session.error = T("You need to use the spreadsheet which you can download from this page")
+            redirect(URL(c="survey", f="newAssessment", args=[],
+                         vars={"viewing": "survey_series.%s" % series_id}))
+        header = ""
+        body = ""
+        for row in xrange(1, sheetM.nrows):
+            header += ',"%s"' % sheetM.cell_value(row, 0)
+            code = sheetM.cell_value(row, 0)
+            qstn = s3.survey_getQuestionFromCode(code, series_id)
+            type = qstn["type"]
+            count = sheetM.cell_value(row, 1)
+            if count != "":
+                count = int(count)
+                optionList = sheetM.cell_value(row, 2).split("|#|")
+            else:
+                count = 1
+                optionList = None
+            if type == "Location" and optionList != None:
+                answerList = {}
+            elif type == "MultiOption":
+                answerList = []
+            else:
+                answerList = ""
+            for col in range(count):
+                cell = sheetM.cell_value(row, 3 + col)
+                (rowR, colR) = cell_to_rowcol2(cell)
+                try:
+                    cellValue = sheetR.cell_value(rowR, colR)
+                except IndexError:
+                    cellValue = ""
+                # BUG: The option list needs to work in different ways
+                # depending on the question type. The question type should
+                # be added to the spreadsheet to save extra db calls:
+                # * Location save all the data as a hierarchy
+                # * MultiOption save all selections
+                # * Option save the last selection
+                if cellValue != "":
+                    if optionList != None:
+                        if type == "Location":
+                            answerList[optionList[col]]=cellValue
+                        elif type == "MultiOption":
+                            answerList.append(optionList[col])
+                        else:
+                            answerList = optionList[col]
+                    else:
+                        if type == "Date":
+                            try:
+                                (dtYear, dtMonth, dtDay, dtHour, dtMinute, dtSecond) = \
+                                         xlrd.xldate_as_tuple(cellValue,
+                                                              workbook.datemode)
+                                dtValue = datetime.date(dtYear, dtMonth, dtDay)
+                                cellValue = dtValue.isoformat()
+                            except:
+                                pass
+                        elif type == "Time":
+                            try:
+                                time = cellValue
+                                hour = int(time * 24)
+                                minute = int((time * 24 - hour) * 60)
+                                cellValue = "%s:%s" % (hour, minute)
+                            except:
+                                pass
+                        answerList += "%s" % cellValue
+            body += ',"%s"' % answerList
+        openFile.write(header)
+        openFile.write("\n")
+        openFile.write(body)
+        openFile.seek(0)
+        return openFile
+
+    s3db.configure("survey_complete",
+                   listadd=False,
+                   deletable=False)
+
+    s3.xls_parser = import_xls
+
+    output = s3_rest_controller(csv_extra_fields = csv_extra_fields)
+    return output
+
+# -----------------------------------------------------------------------------
+def answer():
+    """ RESTful CRUD controller """
+
+    output = s3_rest_controller()
+    return output
+
+# -----------------------------------------------------------------------------
+def analysis():
+    """
+        RESTful CRUD controller
+        - for Completed Answers
+        - not editable (just for analysis)
+    """
+
+    s3db.configure("survey_complete",
+                   deletable = False,
+                   listadd = False,
+                   )
+
+    output = s3_rest_controller(module, "complete")
+    return output
+
+# -----------------------------------------------------------------------------
+def admin():
+    """ Custom Page """
+
+    series_id = None
+    get_vars_new = Storage()
+    try:
+        series_id = int(request.args[0])
+    except:
+        try:
+            (dummy, series_id) = get_vars["viewing"].split(".")
+            series_id = int(series_id)
+        except:
+            pass
+    if series_id:
+        get_vars_new.viewing = "survey_complete.%s" % series_id
+
+    return dict(series_id = series_id,
+                vars = get_vars_new)
+
+# END =========================================================================

@@ -1,0 +1,115 @@
+# -*- coding: utf-8 -*-
+#
+# S3DataTable Unit Tests
+#
+# To run this script use:
+# python web2py.py -S eden -M -R applications/eden/modules/unit_tests/s3/s3datatable.py
+#
+import unittest
+import datetime
+from gluon import *
+from gluon.storage import Storage
+
+from s3.s3data import S3DataTable
+
+# =============================================================================
+class S3DataTableTests(unittest.TestCase):
+
+    # -------------------------------------------------------------------------
+    def setUp(self):
+        """
+            Set up the list of fields each time since the call to S3DataTables
+            could change it.
+        """
+
+        current.auth.override = True
+
+        resource = current.s3db.resource("org_office")
+        list_fields = ["id",
+                       "organisation_id$name",
+                       "organisation_id$address",
+                       "name",
+                       "office_type_id",
+                       "location_id$L0",
+                       "location_id$L1",
+                       "location_id$L2",
+                       "location_id$L3",
+                       "phone1",
+                       "email"
+                       ]
+                       
+        self.resource = resource
+        self.list_fields = list_fields
+
+        data = resource.select(list_fields)
+        
+        self.data = data["rows"]
+        self.rfields = data["rfields"]
+        
+    # -------------------------------------------------------------------------
+    def testDataTableInitialOrderby(self):
+        """ Test the initial orderby for different types of input. """
+        
+        table = self.resource.table
+        
+        dt = S3DataTable(self.rfields, self.data)
+        expected = [[1, "asc"]]
+        actual = dt.orderby
+        self.assertEqual(expected, actual)
+
+        dt = S3DataTable(self.rfields, self.data,
+                         orderby=table.name)
+        expected = [[3, "asc"]]
+        actual = dt.orderby
+        self.assertEqual(expected, actual)
+
+        dt = S3DataTable(self.rfields, self.data,
+                         orderby=~table.name)
+        expected = [[3, "desc"]]
+        actual = dt.orderby
+        self.assertEqual(expected, actual)
+
+        dt = S3DataTable(self.rfields, self.data,
+                         orderby=table.office_type_id | table.name)
+        expected = [[4, "asc"], [3, "asc"]]
+        actual = dt.orderby
+        self.assertEqual(expected, actual)
+
+        dt = S3DataTable(self.rfields, self.data,
+                         orderby=~table.office_type_id | table.name)
+        expected = [[4, "desc"], [3, "asc"]]
+        actual = dt.orderby
+        self.assertEqual(expected, actual)
+
+        otable = current.s3db.org_organisation
+        dt = S3DataTable(self.rfields, self.data,
+                         orderby=otable.name | ~table.office_type_id | table.name)
+        expected = [[1, "asc"], [4, "desc"], [3, "asc"]]
+        actual = dt.orderby
+        self.assertEqual(expected, actual)
+
+    # -------------------------------------------------------------------------
+    def tearDown(cls):
+
+        current.auth.override = False
+
+# =============================================================================
+def run_suite(*test_classes):
+    """ Run the test suite """
+
+    loader = unittest.TestLoader()
+    suite = unittest.TestSuite()
+    for test_class in test_classes:
+        tests = loader.loadTestsFromTestCase(test_class)
+        suite.addTests(tests)
+    if suite is not None:
+        unittest.TextTestRunner(verbosity=2).run(suite)
+    return
+
+if __name__ == "__main__":
+
+    run_suite(
+        S3DataTableTests,
+    )
+
+# END ========================================================================

@@ -36,4 +36,9 @@ def volunteer():
 
 def selectTask():
     """ Task Selection Controller """
-    return dict()
+    task1 = "First Aid"
+    task2 = "Tech Support"
+    task3 = "Leader Volunteer"
+    task4 = "General Volunteer"
+    link1 = A('click me', callback="#", target="t")
+    return dict(task1=task1, task2=task2, task3= task3, task4=task4, link1=link1)

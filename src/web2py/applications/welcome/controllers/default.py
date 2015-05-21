@@ -17,9 +17,9 @@ def index():
     return auth.wiki()
     """
 
-    redirect('/eden')
-    #response.flash = T("Hello World")
-    #return dict(message=T('Welcome to web2py!'))
+    #redirect('/eden')
+    response.flash = T("Hello World")
+    return dict(message=T('Welcome to web2py!'))
 
 
 def user():
