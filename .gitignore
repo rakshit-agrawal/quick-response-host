@@ -5,8 +5,8 @@ src/web2py/applications/*/compiled/*
 src/web2py/applications/*/databases/*
 src/web2py/applications/*/errors/*
 src/web2py/applications/*/indices/*
-src/web2py/applications/*/models/000_config.py
-src/web2py/applications/*/models/0000_update_check.py
+#src/web2py/applications/*/models/000_config.py
+#src/web2py/applications/*/models/0000_update_check.py
 src/web2py/applications/*/sessions/*
 src/web2py/applications/*/uploads/*
 src/web2py/applications/*/static/cache/*
