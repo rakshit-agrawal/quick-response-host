@@ -376,6 +376,7 @@ def pack_custom():
     if request.post_vars.file:
         files = request.post_vars.file
         files = [files] if not isinstance(files,list) else files
+
         fname = 'web2py.app.%s.w2p' % app
         try:
             filename = app_pack(app, request, raise_ex=True, filenames=files)
@@ -395,8 +396,97 @@ def pack_custom():
     files = {}
     for (r,d,f) in os.walk(base):
         files[r] = {'folders':ignore(d),'files':ignore(f)}
+
     return locals()
 
+## Added by Rakshit
+
+def pack_nodb_custom():
+    app = get_app()
+    base = apath(app, r=request)
+    print "\n\n\n\nBase"
+    print base
+    if request.post_vars.file:
+        try:
+            print(files)
+        except:
+            pass
+
+        files = request.post_vars.file
+
+        try:
+            print(files)
+        except:
+            pass
+
+        files = [files] if not isinstance(files,list) else files
+
+        try:
+            print(files)
+        except:
+            pass
+
+        fname = 'web2py.app.%s.w2p' % app
+        try:
+            filename = app_pack(app, request, raise_ex=True, filenames=files)
+        except Exception, e:
+            filename = None
+        if filename:
+            response.headers['Content-Type'] = 'application/w2p'
+            disposition = 'attachment; filename=%s' % fname
+            response.headers['Content-Disposition'] = disposition
+            return safe_read(filename, 'rb')
+        else:
+            session.flash = T('internal error: %s', e)
+            redirect(URL(args=request.args))
+    def ignore(fs):
+        return [f for f in fs if not (
+                f[:1] in '#' or f.endswith('~') or f.endswith('.bak'))]
+    files = {}
+    for (r,d,f) in os.walk(base):
+        if "databases" in r:
+            print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11-----------"
+            files[r] = {'folders':[],'files':[]}
+        else:
+            files[r] = {'folders':ignore(d),'files':ignore(f)}
+        try:
+            print r
+        except:
+            pass
+    return locals()
+
+
+
+
+def pack_nodb_all():
+    app = get_app()
+    base = apath(app, r=request)
+
+    def ignore(fs):
+        return [f for f in fs if not (
+                f[:1] in '#' or f.endswith('~') or f.endswith('.bak'))]
+    files = {}
+    for (r,d,f) in os.walk(base):
+        if "databases" in r:
+            files[r] = {'folders':[],'files':[]}
+        else:
+            files[r] = {'folders':ignore(d),'files':ignore(f)}
+
+    fname = 'web2py.app.%s.w2p' % app
+    try:
+        filename = app_pack(app, request, raise_ex=True, filenames=files)
+    except Exception, e:
+        filename = None
+    if filename:
+        response.headers['Content-Type'] = 'application/w2p'
+        disposition = 'attachment; filename=%s' % fname
+        response.headers['Content-Disposition'] = disposition
+        return safe_read(filename, 'rb')
+    else:
+        session.flash = T('internal error: %s', e)
+        redirect(URL(args=request.args))
+
+###------------###
 
 def upgrade_web2py():
     dialog = FORM.confirm(T('Upgrade'),
