@@ -69,12 +69,12 @@ def createVolunteer():
 
 def volunteerCategories():
     """ Task Selection Controller """
-    firstAidLink = A('First Aid', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/firstAid')
-    techSupport = A('Tech Support', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/techSupport')    
-    leadVolunteer = A('Lead Volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/leadVolunteer')
-    generalVolunteer = A('List Volunteers', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/generalVolunteer')
+    firstAidLink = A('Volunteer with first aid skills', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/firstAid')
+    techSupport = A('Volunteer with tech support skills', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/techSupport')    
+    leadVolunteer = A('Lead volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/leadVolunteer')
+    generalVolunteer = A('General volunteer', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/generalVolunteer')
 
-    return dict(one=firstAidLink, two=techSupport, three=leadVolunteer, four=generalVolunteer)
+    return dict(one=generalVolunteer, two=techSupport, three=firstAidLink, four=leadVolunteer)
 
 def volunteerSearch():
     """ Volunteers Controller """
@@ -287,8 +287,8 @@ def volunteerSearch():
     return controller 
 
 def volunteerAddOrSearch():
-    addLink = A('Add Volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='volunteerCategories')
-    listLink = A('List Volunteers', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='volunteerSearch')    
+    addLink = A('Register a new volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='volunteerCategories')
+    listLink = A('View current volunteers', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='volunteerSearch')    
     return dict(addLink=addLink, listLink=listLink)
 
 def person():
