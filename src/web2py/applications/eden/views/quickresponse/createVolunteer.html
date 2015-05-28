@@ -1,0 +1,18 @@
+{{ include "quickresponse/qrhheader.html" }}
+    <div class="container-fluid">
+      <div class="col-md-3"></div>
+      <div class="col-md-6">
+        {{=form}}
+      </div>
+    </div>
+    <script type="text/javascript">
+      $( function () {
+        $('#showFields').on('click', function () {
+          $('.collapse').show();
+          $(this).hide();
+        });
+        $("#no_table_start_date").datepicker( "setDate", new Date());
+      });
+    </script>
+
+{{ include "quickresponse/qrhfooter.html" }}

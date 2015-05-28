@@ -3,6 +3,7 @@
 """
     Quick Response Host Pages
 """
+import time
 
 module = request.controller
 resourcename = request.function
@@ -24,29 +25,56 @@ def index():
         # Bypass home page & go direct to Volunteers Summary
         redirect(URL(f="volunteerSearch"))
 
-def volunteerDetails():
+def createVolunteer():
     """ Volunteers Controller """
-    table = s3db.pr_person
+    exclude_fields = [
+            'no_table_pe_label__row',
+            'no_table_organisation_id__row',
+            'no_table_site_id__row',
+            'no_table_code__row',
+            'no_table_job_title_id__row',
+            'no_table_department_id__row',
+            'no_table_essential__row',
+            'no_table_start_date__row',
+            'no_table_status__row',
+            'no_table_preferred_name__row',
+            'no_table_initials__row',
+            'no_table_local_name__row',
+            'no_table_site_contact__row']
+    form = SQLFORM.factory(s3db.pr_person, s3db.hrm_human_resource)
 
+    form.vars.organisation_id = 1
+    form.vars.start_date = time.strftime("%m/%d/%Y") 
     if request.args:
-        x= request.args[0]
-        if x=="create":
-            table = s3db.hrm_human_resource
-        elif x=="list":
-            table = s3db.pr_person
-
-    form = SQLFORM(table)
-
+        t = request.args[0]
+        if t == 'firstAid':
+            form.vars.job_title_id = 1
+        elif t == 'techSupport':
+            form.vars.job_title_id = 2
+        elif t == 'leadVolunteer':
+            form.vars.job_title_id = 3
+            form.vars.essential = True
+        elif t == 'generalVolunteer':
+            form.vars.job_title_id = 4
+    for row in form.components[0].elements('tr'):
+        if row['_id'] in exclude_fields:
+            row['_class'] = ' collapse'
+        #if row['attributes']['_id'] in exclude_fields:
+            #row['_class'] = 'collapse'
+        #print(vars(row))
+    showFields = DIV(A(SPAN('Show All Fields', _class="filter-advanced-label"), _class="filter-advanced", _id="showFields"), _class="filter-controls")
+    form[0].insert(-1,showFields)
+    form.process()
     return dict(form=form)
 
 def volunteerCategories():
     """ Task Selection Controller """
-    task1 = "First Aid"
-    task2 = "Tech Support"
-    task3 = "Leader Volunteer"
-    task4 = "General Volunteer"
-    link1 = A('click me', callback="#", target="t")
-    return dict(task1=task1, task2=task2, task3= task3, task4=task4, link1=link1)
+    firstAidLink = A('First Aid', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/firstAid')
+    techSupport = A('Tech Support', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/techSupport')    
+    leadVolunteer = A('Lead Volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/leadVolunteer')
+    generalVolunteer = A('List Volunteers', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/generalVolunteer')
+
+    return dict(one=firstAidLink, two=techSupport, three=leadVolunteer, four=generalVolunteer)
 
 def volunteerSearch():
     """ Volunteers Controller """
