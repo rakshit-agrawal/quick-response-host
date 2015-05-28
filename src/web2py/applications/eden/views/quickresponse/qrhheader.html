@@ -5,13 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Bootstrap -->
     <link href="/eden/static/styles/bootstrap/bootstrap.css" rel="stylesheet" media="screen">
+    <link href="/eden/static/styles/quickresponse.css" rel="stylesheet" media="screen">
+    {{#<script src="/=appname/static/scripts/modernizr.min.js"></script>}}
+    {{for sheet in s3.external_stylesheets:}}
+     <link href="{{=sheet}}" rel="stylesheet" type="text/css" media="screen" charset="utf-8" />
+    {{pass}}
+    {{include "foundation.css.html"}}
+    {{for sheet in s3.stylesheets:}}
+     <link href="/{{=appname}}/static/styles/{{=sheet}}" rel="stylesheet" type="text/css" media="screen" charset="utf-8" />
+    {{pass}}
+    {{if s3.debug:}}{{=s3base.s3_include_debug_css()}}{{else:}}
+     {{# Built by /static/scripts/tools/build.sahana.py }}
+     <link href="/{{=appname}}/static/themes/{{=theme}}/eden.min.css" rel="stylesheet" type="text/css" />
+    {{pass}}
+    {{include "scripts_top.html"}}
   </head>
   <body>
     <nav class="navbar navbar-default">
       <a class="navbar-brand" href="#">Quick Response Host</a>
       <div class="container-fluid">
         <ul class="nav navbar-nav">
-          <li class="active"><a href="#">Volunteers</a></li>
+          <li class="active"><a href="volunteerAddOrSearch">Volunteers</a></li>
           <li><a href="#">Equipment</a></li>
           <li><a href="#">Warehouses</a></li>
         </ul>

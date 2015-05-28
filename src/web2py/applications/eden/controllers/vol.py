@@ -610,7 +610,7 @@ def hr_search():
         - limited to just search_ac for use in Autocompletes
         - allows differential access permissions
     """
-
+    print('searching hr')
     # Filter to just Volunteers
     s3.filter = FS("human_resource.type") == 2
 
@@ -626,6 +626,7 @@ def person_search():
         - limited to just search_ac for use in Autocompletes
         - allows differential access permissions
     """
+    print('searching person')
 
     # Filter to just Volunteers
     s3.filter = FS("human_resource.type") == 2
