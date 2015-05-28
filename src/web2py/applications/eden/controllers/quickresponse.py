@@ -23,7 +23,7 @@ def index():
         redirect(URL(f="person"))
     else:
         # Bypass home page & go direct to Volunteers Summary
-        redirect(URL(f="volunteerSearch"))
+        redirect(URL(f="volunteerAddOrSearch"))
 
 def createVolunteer():
     """ Volunteers Controller """
