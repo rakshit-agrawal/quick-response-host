@@ -252,7 +252,7 @@ def createVolunteer(job):
             'hrm_human_resource_organisation_id__row',
             'no_table_site_id__row',
             'no_table_code__row',
-            'hrm_human_resource_title_id__row',
+            'hrm_human_resource_job_title_id__row',
             'no_table_department_id__row',
             'no_table_essential__row',
             'hrm_human_resource_start_date__row',
@@ -275,7 +275,7 @@ def createVolunteer(job):
             row['_class'] = ' collapse'
         #if row['attributes']['_id'] in exclude_fields:
             #row['_class'] = 'collapse'
-    showFields = DIV(A(SPAN('Show All Fields', _class="filter-advanced-label"), _class="filter-advanced", _id="showFields"), _class="filter-controls")
+    showFields = DIV(A(SPAN('Show/Hide All Fields', _class="filter-advanced-label"), _class="filter-advanced", _id="showFields"), _class="filter-controls")
     form[0].insert(-1,showFields)
     if form.process().accepted:
         pass

@@ -17,8 +17,7 @@
     <script type="text/javascript">
       $( function () {
         $('#showFields').on('click', function () {
-          $('.collapse').show();
-          $(this).hide();
+          $('.collapse').toggle();
         });
         $("#hrm_human_resource_start_date").datepicker( "setDate", new Date());
         $('#hrm_human_resource_person_id_title__row').hide();
