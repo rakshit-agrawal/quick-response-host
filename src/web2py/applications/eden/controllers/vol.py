@@ -267,7 +267,8 @@ def volunteer():
             output = s3db.hrm_map_popup(r)
         return output
     s3.postp = postp
-
+    
+    print(s3_rest_controller("hrm", "human_resource")['form'])
     return s3_rest_controller("hrm", "human_resource")
 
 # -----------------------------------------------------------------------------

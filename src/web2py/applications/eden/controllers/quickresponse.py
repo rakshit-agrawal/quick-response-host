@@ -23,56 +23,321 @@ def index():
         redirect(URL(f="person"))
     else:
         # Bypass home page & go direct to Volunteers Summary
+        print('redirection to add or search')
         redirect(URL(f="volunteerAddOrSearch"))
 
-def createVolunteer():
+def createTech():
+    return createVolunteer(2)
+
+def createAid():
+    return createVolunteer(1)
+
+def createGeneral():
+    return createVolunteer(4)
+
+def createLeader():
+    return createVolunteer(3)
+
+def createVolunteer(job):
     """ Volunteers Controller """
+
+    # Volunteers only
+    s3.filter = FS("type") == 2
+
+    vol_experience = settings.get_hrm_vol_experience()
+
+    def prep(r):
+        resource = r.resource
+        get_config = resource.get_config
+
+        # CRUD String
+        s3.crud_strings[resource.tablename] = s3.crud_strings["hrm_volunteer"]
+
+        # Default to volunteers
+        table = r.table
+        table.type.default = 2
+
+        # Volunteers use home address
+        location_id = table.location_id
+        location_id.label = T("Home Address")
+
+        # Configure list_fields
+        if r.representation == "xls":
+            # Split person_id into first/middle/last to
+            # make it match Import sheets
+            list_fields = ["person_id$first_name",
+                           "person_id$middle_name",
+                           "person_id$last_name",
+                           ]
+        else:
+            list_fields = ["person_id",
+                           ]
+        list_fields.append("job_title_id")
+        if settings.get_hrm_multiple_orgs():
+            list_fields.append("organisation_id")
+        list_fields.extend(((settings.get_ui_label_mobile_phone(), "phone.value"),
+                            (T("Email"), "email.value"),
+                            "location_id",
+                            ))
+        if settings.get_hrm_use_trainings():
+            list_fields.append((T("Trainings"),"person_id$training.course_id"))
+        if settings.get_hrm_use_certificates():
+            list_fields.append((T("Certificates"),"person_id$certification.certificate_id"))
+
+        # Volunteer Programme and Active-status
+        report_options = get_config("report_options")
+        if vol_experience in ("programme", "both"):
+            # Don't use status field
+            table.status.readable = table.status.writable = False
+            # Use active field?
+            vol_active = settings.get_hrm_vol_active()
+            if vol_active:
+                list_fields.insert(3, (T("Active?"), "details.active"))
+            # Add Programme to List Fields
+            list_fields.insert(6, "person_id$hours.programme_id")
+
+            # Add active and programme to Report Options
+            report_fields = report_options.rows
+            report_fields.append("person_id$hours.programme_id")
+            if vol_active:
+                report_fields.append((T("Active?"), "details.active"))
+            report_options.rows = report_fields
+            report_options.cols = report_fields
+            report_options.fact = report_fields
+        else:
+            # Use status field
+            list_fields.append("status")
+
+        # Update filter widgets
+        filter_widgets = \
+            s3db.hrm_human_resource_filters(resource_type="volunteer",
+                                            hrm_type_opts=s3db.hrm_type_opts)
+
+        # Reconfigure
+        resource.configure(list_fields = list_fields,
+                           filter_widgets = filter_widgets,
+                           report_options = report_options,
+                           )
+
+        if r.interactive:
+            if r.id:
+                if r.method not in ("profile", "delete"):
+                    # Redirect to person controller
+                    vars = {"human_resource.id": r.id,
+                            "group": "volunteer"
+                            }
+                    if r.representation == "iframe":
+                        vars["format"] = "iframe"
+                        args = [r.method]
+                    else:
+                        args = []
+                    redirect(URL('volunteerCategories/'))
+            else:
+                if r.method == "import":
+                    # Redirect to person controller
+                    redirect(URL(f="person",
+                                 args="import",
+                                 vars={"group": "volunteer"}))
+
+                elif not r.component and r.method != "delete":
+                    # Configure AddPersonWidget
+                    table.person_id.widget = S3AddPersonWidget2(controller="vol")
+                    # Show location ID
+                    location_id.writable = location_id.readable = True
+                    # Hide unwanted fields
+                    for fn in ("site_id",
+                               "code",
+                               "department_id",
+                               "essential",
+                               "site_contact",
+                               "status",
+                               ):
+                        table[fn].writable = table[fn].readable = False
+                    # Organisation Dependent Fields
+                    set_org_dependent_field = settings.set_org_dependent_field
+                    set_org_dependent_field("pr_person_details", "father_name")
+                    set_org_dependent_field("pr_person_details", "mother_name")
+                    set_org_dependent_field("pr_person_details", "affiliations")
+                    set_org_dependent_field("pr_person_details", "company")
+                    set_org_dependent_field("vol_details", "availability")
+                    set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_type_id")
+                    set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_id")
+                    set_org_dependent_field("vol_volunteer_cluster", "vol_cluster_position_id")
+                    # Label for "occupation"
+                    s3db.pr_person_details.occupation.label = T("Normal Job")
+                    # Assume volunteers only between 12-81
+                    s3db.pr_person.date_of_birth.widget = S3DateWidget(past=972, future=-144)
+        return True
+    s3.prep = prep
+
+    def postp(r, output):
+        if r.interactive and not r.component:
+            # Set the minimum end_date to the same as the start_date
+            s3.jquery_ready.append(
+'''S3.start_end_date('hrm_human_resource_start_date','hrm_human_resource_end_date')''')
+
+            # Configure action buttons
+            s3_action_buttons(r, deletable=settings.get_hrm_deletable())
+            if "msg" in settings.modules and \
+               settings.get_hrm_compose_button() and \
+               auth.permission.has_permission("update", c="hrm", f="compose"):
+                # @ToDo: Remove this now that we have it in Events?
+                s3.actions.append({
+                        "url": URL(f="compose",
+                                    vars = {"human_resource.id": "[id]"}),
+                        "_class": "action-btn send",
+                        "label": str(T("Send Message"))
+                    })
+
+            # Insert field to set the Programme
+            if vol_experience in ("programme", "both") and \
+               r.method not in ("search", "report", "import") and \
+               "form" in output:
+                # @ToDo: Re-implement using
+                # http://eden.sahanafoundation.org/wiki/S3SQLForm
+                # NB This means adjusting IFRC/config.py too
+                sep = ": "
+                table = s3db.hrm_programme_hours
+                field = table.programme_id
+                default = field.default
+                widget = field.widget or SQLFORM.widgets.options.widget(field, default)
+                field_id = "%s_%s" % (table._tablename, field.name)
+                label = field.label
+                row_id = field_id + SQLFORM.ID_ROW_SUFFIX
+                if s3_formstyle == "bootstrap":
+                    label = LABEL(label, label and sep, _class="control-label", _for=field_id)
+                    _controls = DIV(widget, _class="controls")
+                    row = DIV(label, _controls,
+                                _class="control-group",
+                                _id=row_id,
+                                )
+                    output["form"][0].insert(4, row)
+                elif callable(s3_formstyle):
+                    label = LABEL(label, label and sep, _for=field_id,
+                                    _id=field_id + SQLFORM.ID_LABEL_SUFFIX)
+                    programme = s3_formstyle(row_id, label, widget,
+                                                field.comment)
+                    if isinstance(programme, DIV) and \
+                       "form-row" in programme["_class"]:
+                        # Foundation formstyle
+                        output["form"][0].insert(4, programme)
+                    else:
+                        try:
+                            output["form"][0].insert(4, programme[1])
+                        except:
+                            # A non-standard formstyle with just a single row
+                            pass
+                        try:
+                            output["form"][0].insert(4, programme[0])
+                        except:
+                            pass
+                else:
+                    # Unsupported
+                    raise
+
+        elif r.representation == "plain":
+            # Map Popups
+            output = s3db.hrm_map_popup(r)
+        return output
+    s3.postp = postp
+    
+    controller =  s3_rest_controller("hrm", "human_resource", create_next='/eden/quickresponse/volunteerCategories', update_next='/eden/quickresponse/volunteerCategories')
+    response.view = "quickresponse/createVolunteer.html"
+    form = controller['form']
+    form.vars.organisation_id = 1
+    form.vars.job_title_id = job
+
     exclude_fields = [
             'no_table_pe_label__row',
-            'no_table_organisation_id__row',
+            'hrm_human_resource_organisation_id__row',
             'no_table_site_id__row',
             'no_table_code__row',
-            'no_table_job_title_id__row',
+            'hrm_human_resource_title_id__row',
             'no_table_department_id__row',
             'no_table_essential__row',
-            'no_table_start_date__row',
+            'hrm_human_resource_start_date__row',
             'no_table_status__row',
             'no_table_preferred_name__row',
             'no_table_initials__row',
             'no_table_local_name__row',
             'no_table_site_contact__row']
-    form = SQLFORM.factory(s3db.pr_person, s3db.hrm_human_resource)
-
-    form.vars.organisation_id = 1
-    form.vars.start_date = time.strftime("%m/%d/%Y") 
-    if request.args:
-        t = request.args[0]
-        if t == 'firstAid':
-            form.vars.job_title_id = 1
-        elif t == 'techSupport':
-            form.vars.job_title_id = 2
-        elif t == 'leadVolunteer':
-            form.vars.job_title_id = 3
-            form.vars.essential = True
-        elif t == 'generalVolunteer':
-            form.vars.job_title_id = 4
-    for row in form.components[0].elements('tr'):
+    leadText = ''
+    if job == 1:
+        leadText = 'This first aid volunteer\'s details are..'
+    elif job == 2: 
+        leadText = 'This tech support volunteer\'s details are..'
+    elif job == 3:
+        leadText = 'This lead volunteer\'s details are..'
+    elif job == 4:
+        leadText = 'This general volunteer\'s details are..'
+    for row in form.components[0].elements('div'):
         if row['_id'] in exclude_fields:
             row['_class'] = ' collapse'
         #if row['attributes']['_id'] in exclude_fields:
             #row['_class'] = 'collapse'
-        #print(vars(row))
     showFields = DIV(A(SPAN('Show All Fields', _class="filter-advanced-label"), _class="filter-advanced", _id="showFields"), _class="filter-controls")
     form[0].insert(-1,showFields)
-    form.process()
-    return dict(form=form)
+    if form.process().accepted:
+        pass
+    elif form.errors:
+        pass
+    return dict(form=form, text=leadText)
+
+#def createVolunteer():
+#   """ Volunteers Controller """
+#   exclude_fields = [
+#           'no_table_pe_label__row',
+#           'no_table_organisation_id__row',
+#           'no_table_site_id__row',
+#           'no_table_code__row',
+#           'no_table_job_title_id__row',
+#           'no_table_department_id__row',
+#           'no_table_essential__row',
+#           'no_table_start_date__row',
+#           'no_table_status__row',
+#           'no_table_preferred_name__row',
+#           'no_table_initials__row',
+#           'no_table_local_name__row',
+#           'no_table_site_contact__row']
+#   form = SQLFORM.factory(s3db.pr_person, s3db.hrm_human_resource, s3db.pr_contact)
+
+#   form.vars.organisation_id = 1
+#   form.vars.start_date = time.strftime("%m/%d/%Y") 
+#   leadText = ''
+#   if request.args:
+#       t = request.args[0]
+#       if t == 'firstAid':
+#           form.vars.job_title_id = 1
+#           leadText = 'This first aid volunteer\'s details are..'
+#       elif t == 'techSupport':
+#           form.vars.job_title_id = 2
+#           leadText = 'This tech support volunteer\'s details are..'
+#       elif t == 'leadVolunteer':
+#           form.vars.job_title_id = 3
+#           form.vars.essential = True
+#           leadText = 'This lead volunteer\'s details are..'
+#       elif t == 'generalVolunteer':
+#           form.vars.job_title_id = 4
+#           leadText = 'This general volunteer\'s details are..'
+#   for row in form.components[0].elements('tr'):
+#       if row['_id'] in exclude_fields:
+#           row['_class'] = ' collapse'
+#       #if row['attributes']['_id'] in exclude_fields:
+#           #row['_class'] = 'collapse'
+#   showFields = DIV(A(SPAN('Show All Fields', _class="filter-advanced-label"), _class="filter-advanced", _id="showFields"), _class="filter-controls")
+#   form[0].insert(-1,showFields)
+#   if form.process().accepted:
+#       pass
+#   elif form.errors:
+#       pass
+#   return dict(form=form, text=leadText)
 
 def volunteerCategories():
     """ Task Selection Controller """
-    firstAidLink = A('Volunteer with first aid skills', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/firstAid')
-    techSupport = A('Volunteer with tech support skills', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/techSupport')    
-    leadVolunteer = A('Lead volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createVolunteer/leadVolunteer')
-    generalVolunteer = A('General volunteer', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createVolunteer/generalVolunteer')
+    firstAidLink = A('Volunteer with first aid skills', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createAid/')
+    techSupport = A('Volunteer with tech support skills', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createTech')    
+    leadVolunteer = A('Lead volunteer', target='volunteerCategories', _class='btn btn-default btn-block btn-lg main-btn',  _role='button', _href='createLeader')
+    generalVolunteer = A('General volunteer', target='volunteerSearch', _class='btn btn-default btn-block btn-lg main-btn', _role='button', _href='createGeneral')
 
     return dict(one=generalVolunteer, two=techSupport, three=firstAidLink, four=leadVolunteer)
 
@@ -278,11 +543,7 @@ def volunteerSearch():
         return output
     s3.postp = postp
 
-
-    #for i in s3_rest_controller("hrm", "human_resource")['r'].keys():
-    #    print(i + ':  ', s3_rest_controller("hrm", "human_resource")['r'].get(i))
     controller = s3_rest_controller("hrm", "human_resource")
-    print(controller)
     response.view = "quickresponse/volunteerSearch.html"
     return controller 
 
